@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# 编辑器 / Cursor（本地配置，不必进仓库）
+.cursor/
+.vscode/
+.idea/
+*.swp
+*~
+
+# 扩展打包产物（可由脚本重新生成）
+dist/
+*.zip
+
+# Python（gen_icons.py）
+__pycache__/
+*.py[cod]
+.Python
+
+# 环境与密钥（当前项目无，但预留）
+.env
+.env.*

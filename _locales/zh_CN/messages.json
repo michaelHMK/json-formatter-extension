@@ -1,0 +1,463 @@
+{
+  "extName": {
+    "message": "JSON 格式化与对比工具"
+  },
+  "extDescription": {
+    "message": "零权限、纯本地、无广告的 JSON 工具箱：10MB 级大文件秒开的格式化、压缩、树形视图与搜索，支持主键配对的双 JSON 结构/文本对比，转义互转。不收集任何数据。"
+  },
+  "actionTitle": {
+    "message": "打开 JSON 格式化工具"
+  },
+  "titleFormatter": {
+    "message": "JSON 格式化 - JSON 工具箱"
+  },
+  "titleMinify": {
+    "message": "JSON 压缩 - JSON 工具箱"
+  },
+  "titleEscape": {
+    "message": "JSON 转义 - JSON 工具箱"
+  },
+  "titleUnescape": {
+    "message": "JSON 去转义 - JSON 工具箱"
+  },
+  "titleCompare": {
+    "message": "JSON 对比 - JSON 工具箱"
+  },
+  "appName": {
+    "message": "JSON 工具箱"
+  },
+  "navTools": {
+    "message": "工具"
+  },
+  "navFormat": {
+    "message": "JSON 格式化"
+  },
+  "navMinify": {
+    "message": "JSON 压缩"
+  },
+  "navEscape": {
+    "message": "JSON 转义"
+  },
+  "navUnescape": {
+    "message": "JSON 去转义"
+  },
+  "navCompare": {
+    "message": "JSON 对比"
+  },
+  "localOnly": {
+    "message": "所有数据仅在本地处理"
+  },
+  "descFormat": {
+    "message": "美化 JSON，支持树形浏览、层级展开与搜索。"
+  },
+  "descMinify": {
+    "message": "去除多余空白，将 JSON 压缩为单行。"
+  },
+  "descEscape": {
+    "message": "将 JSON 或任意文本转换为可嵌入 JSON 的字符串内容。"
+  },
+  "descUnescape": {
+    "message": "将转义后的字符串内容还原为原始文本。"
+  },
+  "descCompare": {
+    "message": "清晰查看两个 JSON 之间的新增、删除和变更。"
+  },
+  "inputMinifyPlaceholder": {
+    "message": "在此粘贴需要压缩的 JSON…（Cmd/Ctrl + Enter 压缩）"
+  },
+  "inputEscapePlaceholder": {
+    "message": "在此粘贴需要转义的文本…（Cmd/Ctrl + Enter 转义）"
+  },
+  "inputUnescapePlaceholder": {
+    "message": "在此粘贴需要还原的转义字符串…（Cmd/Ctrl + Enter 去转义）"
+  },
+  "busyText": {
+    "message": "处理中…"
+  },
+  "btnFormat": {
+    "message": "格式化"
+  },
+  "btnFormatTitle": {
+    "message": "快捷键 Cmd/Ctrl + Enter"
+  },
+  "btnMinify": {
+    "message": "压缩"
+  },
+  "btnMinifyTitle": {
+    "message": "去除空白，压缩成一行"
+  },
+  "btnEscape": {
+    "message": "转义"
+  },
+  "btnEscapeTitle": {
+    "message": "把 JSON 文本转成转义后的字符串"
+  },
+  "btnUnescape": {
+    "message": "去转义"
+  },
+  "btnUnescapeTitle": {
+    "message": "把转义字符串还原成 JSON 文本"
+  },
+  "labelIndent": {
+    "message": "缩进"
+  },
+  "optSpaces2": {
+    "message": "2 空格"
+  },
+  "optSpaces4": {
+    "message": "4 空格"
+  },
+  "labelAutoFormat": {
+    "message": "粘贴即格式化"
+  },
+  "labelAutoFormatTitle": {
+    "message": "粘贴内容后立即自动格式化"
+  },
+  "viewRaw": {
+    "message": "原文"
+  },
+  "viewTree": {
+    "message": "树形"
+  },
+  "levelTitle": {
+    "message": "把树形结构展开到指定层级"
+  },
+  "levelPlaceholder": {
+    "message": "展开层级…"
+  },
+  "level1": {
+    "message": "1 级"
+  },
+  "level2": {
+    "message": "2 级"
+  },
+  "level3": {
+    "message": "3 级"
+  },
+  "level4": {
+    "message": "4 级"
+  },
+  "level5": {
+    "message": "5 级"
+  },
+  "level8": {
+    "message": "8 级"
+  },
+  "levelAll": {
+    "message": "全部"
+  },
+  "searchPlaceholder": {
+    "message": "搜索 key 或值…"
+  },
+  "matchPrevTitle": {
+    "message": "上一个（Shift+Enter）"
+  },
+  "matchNextTitle": {
+    "message": "下一个（Enter）"
+  },
+  "btnSample": {
+    "message": "示例"
+  },
+  "btnCopy": {
+    "message": "复制结果"
+  },
+  "btnClear": {
+    "message": "清空"
+  },
+  "linkCompare": {
+    "message": "JSON 对比 →"
+  },
+  "linkCompareTitle": {
+    "message": "打开 JSON 对比页"
+  },
+  "paneInput": {
+    "message": "输入"
+  },
+  "paneResult": {
+    "message": "结果"
+  },
+  "inputPlaceholder": {
+    "message": "在此粘贴 JSON…（Cmd/Ctrl + Enter 格式化）"
+  },
+  "errNeedInput": {
+    "message": "请先输入 JSON 内容"
+  },
+  "errNeedContent": {
+    "message": "请先输入内容"
+  },
+  "errNothingToParse": {
+    "message": "没有可解析的内容，请先输入 JSON"
+  },
+  "errNothingToCopy": {
+    "message": "没有可复制的内容"
+  },
+  "errParseFailed": {
+    "message": "解析失败："
+  },
+  "errLineCol": {
+    "message": "第 $line$ 行第 $col$ 列：",
+    "placeholders": {
+      "line": {
+        "content": "$1"
+      },
+      "col": {
+        "content": "$2"
+      }
+    }
+  },
+  "errUnescapeFailed": {
+    "message": "去转义失败："
+  },
+  "errSearchFailed": {
+    "message": "搜索失败："
+  },
+  "statusFormatted": {
+    "message": "已格式化 · $count$ 字符 · $time$ ms",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "time": {
+        "content": "$2"
+      }
+    }
+  },
+  "statusMinified": {
+    "message": "已压缩 · $count$ 字符 · $time$ ms",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "time": {
+        "content": "$2"
+      }
+    }
+  },
+  "statusEscaped": {
+    "message": "已转义 · $count$ 字符",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "statusUnescaped": {
+    "message": "已去转义 · $count$ 字符",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "statusCopied": {
+    "message": "已复制 $count$ 字符到剪贴板",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "treeSummaryItems": {
+    "message": " $count$ 项 ",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "treeSummaryKeys": {
+    "message": " $count$ 键 ",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "showMore": {
+    "message": "显示更多（已显示 $shown$ / $total$）",
+    "placeholders": {
+      "shown": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "strTruncated": {
+    "message": " …（共 $count$ 字符，已截断展示）",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "renderLimitedTree": {
+    "message": "结构过大，已展开约 $count$ 个节点，更深层级请手动展开",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "expandedAll": {
+    "message": "已展开全部层级"
+  },
+  "expandedLevel": {
+    "message": "已展开 $level$ 级",
+    "placeholders": {
+      "level": {
+        "content": "$1"
+      }
+    }
+  },
+  "matchNone": {
+    "message": "无匹配"
+  },
+  "btnCompare": {
+    "message": "对比"
+  },
+  "btnCompareTitle": {
+    "message": "快捷键 Cmd/Ctrl + Enter"
+  },
+  "btnSwap": {
+    "message": "⇄ 交换"
+  },
+  "btnSwapTitle": {
+    "message": "交换左右两边内容"
+  },
+  "labelArrayMode": {
+    "message": "数组"
+  },
+  "optArrayIndex": {
+    "message": "按下标对比"
+  },
+  "optArrayKey": {
+    "message": "按主键配对"
+  },
+  "labelKeyField": {
+    "message": "主键"
+  },
+  "keyFieldPlaceholder": {
+    "message": "如 id"
+  },
+  "labelIgnorePaths": {
+    "message": "忽略路径"
+  },
+  "ignorePathsTitle": {
+    "message": "每处一条精确路径，* 匹配任意单段，多个用逗号分隔"
+  },
+  "ignorePathsPlaceholder": {
+    "message": "如 list[*].updatedAt，逗号分隔"
+  },
+  "viewStruct": {
+    "message": "结构对比"
+  },
+  "viewTextDiff": {
+    "message": "文本对比"
+  },
+  "viewTextDiffTitle": {
+    "message": "格式化后逐行对比，忽略路径/数组策略不影响此视图"
+  },
+  "onlyDiffLabel": {
+    "message": "只看差异"
+  },
+  "onlyDiffTitle": {
+    "message": "隐藏没有差异的分支"
+  },
+  "diffPrevTitle": {
+    "message": "上一处差异"
+  },
+  "diffNextTitle": {
+    "message": "下一处差异"
+  },
+  "linkFormatter": {
+    "message": "← 返回格式化"
+  },
+  "paneOld": {
+    "message": "旧版本（左）"
+  },
+  "paneNew": {
+    "message": "新版本（右）"
+  },
+  "inputLeftPlaceholder": {
+    "message": "粘贴旧版本 JSON…"
+  },
+  "inputRightPlaceholder": {
+    "message": "粘贴新版本 JSON…（Cmd/Ctrl + Enter 开始对比）"
+  },
+  "paneCompareResult": {
+    "message": "对比结果"
+  },
+  "colOld": {
+    "message": "旧"
+  },
+  "colNew": {
+    "message": "新"
+  },
+  "errNeedBothSides": {
+    "message": "请在左右两侧都填入 JSON"
+  },
+  "errCompareFailed": {
+    "message": "对比失败："
+  },
+  "errTextDiffFailed": {
+    "message": "文本对比失败："
+  },
+  "diffStats": {
+    "message": "共 $total$ 处差异：+$added$ −$removed$ ~$changed$ ⇄$typechanged$",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "added": {
+        "content": "$2"
+      },
+      "removed": {
+        "content": "$3"
+      },
+      "changed": {
+        "content": "$4"
+      },
+      "typechanged": {
+        "content": "$5"
+      }
+    }
+  },
+  "diffStatsTruncated": {
+    "message": "（明细仅收录前 $count$ 条）",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "diffKeyFallback": {
+    "message": "；部分数组元素无主键，已按下标对比"
+  },
+  "diffRenderLimited": {
+    "message": "；结构过大，仅部分展开"
+  },
+  "diffIdenticalNote": {
+    "message": "，两边内容一致"
+  },
+  "textDiffBlockyNote": {
+    "message": "差异段过大，已按整块展示（结构对比视图不受此限制）"
+  },
+  "textDiffTruncatedNote": {
+    "message": "内容过大，仅显示前 $count$ 行",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "textDiffGap": {
+    "message": "  ⋯ $count$ 行相同 ⋯",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  }
+}

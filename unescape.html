@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="titleUnescape">JSON 去转义 - JSON 工具箱</title>
+  <link rel="stylesheet" href="formatter.css">
+</head>
+<body data-page="unescape" data-action="unescape">
+  <div class="app-shell">
+    <aside id="sidebar" class="sidebar"></aside>
+    <div class="page-shell">
+      <header class="page-header">
+        <div class="page-heading">
+          <h1 data-i18n="navUnescape">JSON 去转义</h1>
+          <p data-i18n="descUnescape">将转义后的字符串内容还原为原始文本。</p>
+        </div>
+        <div class="page-actions">
+          <button id="btn-sample" data-i18n="btnSample">示例</button>
+          <button id="btn-clear" data-i18n="btnClear">清空</button>
+          <button id="btn-run" class="primary" data-i18n="btnUnescape" data-i18n-title="btnUnescapeTitle">去转义</button>
+        </div>
+      </header>
+
+      <div id="error" class="notice" hidden></div>
+
+      <main class="workspace">
+        <section class="pane">
+          <div class="pane-title"><span data-i18n="paneInput">输入</span></div>
+          <textarea id="input" spellcheck="false" wrap="off"
+            data-i18n-placeholder="inputUnescapePlaceholder"
+            placeholder="在此粘贴需要还原的转义字符串…"></textarea>
+        </section>
+        <section class="pane">
+          <div class="pane-title">
+            <div class="pane-label">
+              <span data-i18n="paneResult">结果</span>
+              <span id="status" class="status"></span><span id="busy" hidden data-i18n="busyText">处理中…</span>
+            </div>
+            <button id="btn-copy" class="button-compact" data-i18n="btnCopy">复制结果</button>
+          </div>
+          <pre id="output-text"></pre>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script src="navigation.js"></script>
+  <script src="i18n.js"></script>
+  <script src="transform.js"></script>
+</body>
+</html>

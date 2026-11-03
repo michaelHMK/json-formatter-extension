@@ -1,0 +1,463 @@
+{
+  "extName": {
+    "message": "JSON Formatter & Compare"
+  },
+  "extDescription": {
+    "message": "Zero-permission, fully local, ad-free JSON toolbox: fast on 10MB+ files — format, minify, tree view with search, plus structural/text diff of two JSONs with key-based array matching. No data collection."
+  },
+  "actionTitle": {
+    "message": "Open JSON Formatter"
+  },
+  "titleFormatter": {
+    "message": "JSON Formatter - JSON Toolbox"
+  },
+  "titleMinify": {
+    "message": "JSON Minify - JSON Toolbox"
+  },
+  "titleEscape": {
+    "message": "JSON Escape - JSON Toolbox"
+  },
+  "titleUnescape": {
+    "message": "JSON Unescape - JSON Toolbox"
+  },
+  "titleCompare": {
+    "message": "JSON Compare - JSON Toolbox"
+  },
+  "appName": {
+    "message": "JSON Toolbox"
+  },
+  "navTools": {
+    "message": "TOOLS"
+  },
+  "navFormat": {
+    "message": "JSON Formatter"
+  },
+  "navMinify": {
+    "message": "JSON Minify"
+  },
+  "navEscape": {
+    "message": "JSON Escape"
+  },
+  "navUnescape": {
+    "message": "JSON Unescape"
+  },
+  "navCompare": {
+    "message": "JSON Compare"
+  },
+  "localOnly": {
+    "message": "All data stays on your device"
+  },
+  "descFormat": {
+    "message": "Beautify JSON with tree browsing, level expansion and search."
+  },
+  "descMinify": {
+    "message": "Remove unnecessary whitespace and turn JSON into a single line."
+  },
+  "descEscape": {
+    "message": "Turn JSON or any text into content ready for a JSON string."
+  },
+  "descUnescape": {
+    "message": "Restore escaped string content to its original text."
+  },
+  "descCompare": {
+    "message": "See additions, removals and changes between two JSON documents."
+  },
+  "inputMinifyPlaceholder": {
+    "message": "Paste JSON to minify… (Cmd/Ctrl + Enter)"
+  },
+  "inputEscapePlaceholder": {
+    "message": "Paste text to escape… (Cmd/Ctrl + Enter)"
+  },
+  "inputUnescapePlaceholder": {
+    "message": "Paste escaped string content… (Cmd/Ctrl + Enter)"
+  },
+  "busyText": {
+    "message": "Working…"
+  },
+  "btnFormat": {
+    "message": "Format"
+  },
+  "btnFormatTitle": {
+    "message": "Shortcut: Cmd/Ctrl + Enter"
+  },
+  "btnMinify": {
+    "message": "Minify"
+  },
+  "btnMinifyTitle": {
+    "message": "Strip whitespace into a single line"
+  },
+  "btnEscape": {
+    "message": "Escape"
+  },
+  "btnEscapeTitle": {
+    "message": "Turn JSON text into an escaped string"
+  },
+  "btnUnescape": {
+    "message": "Unescape"
+  },
+  "btnUnescapeTitle": {
+    "message": "Restore an escaped string to JSON text"
+  },
+  "labelIndent": {
+    "message": "Indent"
+  },
+  "optSpaces2": {
+    "message": "2 spaces"
+  },
+  "optSpaces4": {
+    "message": "4 spaces"
+  },
+  "labelAutoFormat": {
+    "message": "Format on paste"
+  },
+  "labelAutoFormatTitle": {
+    "message": "Format immediately after pasting"
+  },
+  "viewRaw": {
+    "message": "Raw"
+  },
+  "viewTree": {
+    "message": "Tree"
+  },
+  "levelTitle": {
+    "message": "Expand the tree to a chosen level"
+  },
+  "levelPlaceholder": {
+    "message": "Expand levels…"
+  },
+  "level1": {
+    "message": "Level 1"
+  },
+  "level2": {
+    "message": "Level 2"
+  },
+  "level3": {
+    "message": "Level 3"
+  },
+  "level4": {
+    "message": "Level 4"
+  },
+  "level5": {
+    "message": "Level 5"
+  },
+  "level8": {
+    "message": "Level 8"
+  },
+  "levelAll": {
+    "message": "All"
+  },
+  "searchPlaceholder": {
+    "message": "Search key or value…"
+  },
+  "matchPrevTitle": {
+    "message": "Previous (Shift+Enter)"
+  },
+  "matchNextTitle": {
+    "message": "Next (Enter)"
+  },
+  "btnSample": {
+    "message": "Sample"
+  },
+  "btnCopy": {
+    "message": "Copy result"
+  },
+  "btnClear": {
+    "message": "Clear"
+  },
+  "linkCompare": {
+    "message": "JSON Compare →"
+  },
+  "linkCompareTitle": {
+    "message": "Open the JSON compare page"
+  },
+  "paneInput": {
+    "message": "Input"
+  },
+  "paneResult": {
+    "message": "Result"
+  },
+  "inputPlaceholder": {
+    "message": "Paste JSON here… (Cmd/Ctrl + Enter to format)"
+  },
+  "errNeedInput": {
+    "message": "Please enter JSON content first"
+  },
+  "errNeedContent": {
+    "message": "Please enter content first"
+  },
+  "errNothingToParse": {
+    "message": "Nothing to parse — enter JSON first"
+  },
+  "errNothingToCopy": {
+    "message": "Nothing to copy"
+  },
+  "errParseFailed": {
+    "message": "Parse failed: "
+  },
+  "errLineCol": {
+    "message": "Line $line$ column $col$: ",
+    "placeholders": {
+      "line": {
+        "content": "$1"
+      },
+      "col": {
+        "content": "$2"
+      }
+    }
+  },
+  "errUnescapeFailed": {
+    "message": "Unescape failed: "
+  },
+  "errSearchFailed": {
+    "message": "Search failed: "
+  },
+  "statusFormatted": {
+    "message": "Formatted · $count$ chars · $time$ ms",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "time": {
+        "content": "$2"
+      }
+    }
+  },
+  "statusMinified": {
+    "message": "Minified · $count$ chars · $time$ ms",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "time": {
+        "content": "$2"
+      }
+    }
+  },
+  "statusEscaped": {
+    "message": "Escaped · $count$ chars",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "statusUnescaped": {
+    "message": "Unescaped · $count$ chars",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "statusCopied": {
+    "message": "Copied $count$ chars to clipboard",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "treeSummaryItems": {
+    "message": " $count$ items ",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "treeSummaryKeys": {
+    "message": " $count$ keys ",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "showMore": {
+    "message": "Show more ($shown$ / $total$ shown)",
+    "placeholders": {
+      "shown": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "strTruncated": {
+    "message": " … ($count$ chars total, truncated)",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "renderLimitedTree": {
+    "message": "Structure too large — expanded ~$count$ nodes; expand deeper levels manually",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "expandedAll": {
+    "message": "All levels expanded"
+  },
+  "expandedLevel": {
+    "message": "Expanded to level $level$",
+    "placeholders": {
+      "level": {
+        "content": "$1"
+      }
+    }
+  },
+  "matchNone": {
+    "message": "No matches"
+  },
+  "btnCompare": {
+    "message": "Compare"
+  },
+  "btnCompareTitle": {
+    "message": "Shortcut: Cmd/Ctrl + Enter"
+  },
+  "btnSwap": {
+    "message": "⇄ Swap"
+  },
+  "btnSwapTitle": {
+    "message": "Swap left and right"
+  },
+  "labelArrayMode": {
+    "message": "Arrays"
+  },
+  "optArrayIndex": {
+    "message": "By index"
+  },
+  "optArrayKey": {
+    "message": "Match by key"
+  },
+  "labelKeyField": {
+    "message": "Key"
+  },
+  "keyFieldPlaceholder": {
+    "message": "e.g. id"
+  },
+  "labelIgnorePaths": {
+    "message": "Ignore paths"
+  },
+  "ignorePathsTitle": {
+    "message": "Exact paths, * matches one segment, comma-separated"
+  },
+  "ignorePathsPlaceholder": {
+    "message": "e.g. list[*].updatedAt, comma-separated"
+  },
+  "viewStruct": {
+    "message": "Structural"
+  },
+  "viewTextDiff": {
+    "message": "Text diff"
+  },
+  "viewTextDiffTitle": {
+    "message": "Line-by-line after formatting; ignore paths/array strategy do not apply"
+  },
+  "onlyDiffLabel": {
+    "message": "Diffs only"
+  },
+  "onlyDiffTitle": {
+    "message": "Hide branches without differences"
+  },
+  "diffPrevTitle": {
+    "message": "Previous diff"
+  },
+  "diffNextTitle": {
+    "message": "Next diff"
+  },
+  "linkFormatter": {
+    "message": "← Back to Formatter"
+  },
+  "paneOld": {
+    "message": "Old (left)"
+  },
+  "paneNew": {
+    "message": "New (right)"
+  },
+  "inputLeftPlaceholder": {
+    "message": "Paste old JSON…"
+  },
+  "inputRightPlaceholder": {
+    "message": "Paste new JSON… (Cmd/Ctrl + Enter to compare)"
+  },
+  "paneCompareResult": {
+    "message": "Result"
+  },
+  "colOld": {
+    "message": "Old"
+  },
+  "colNew": {
+    "message": "New"
+  },
+  "errNeedBothSides": {
+    "message": "Please fill in JSON on both sides"
+  },
+  "errCompareFailed": {
+    "message": "Compare failed: "
+  },
+  "errTextDiffFailed": {
+    "message": "Text diff failed: "
+  },
+  "diffStats": {
+    "message": "$total$ differences: +$added$ −$removed$ ~$changed$ ⇄$typechanged$",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      },
+      "added": {
+        "content": "$2"
+      },
+      "removed": {
+        "content": "$3"
+      },
+      "changed": {
+        "content": "$4"
+      },
+      "typechanged": {
+        "content": "$5"
+      }
+    }
+  },
+  "diffStatsTruncated": {
+    "message": " (details capped at first $count$)",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "diffKeyFallback": {
+    "message": "; some array items lack the key field — compared by index"
+  },
+  "diffRenderLimited": {
+    "message": "; structure too large, partially expanded"
+  },
+  "diffIdenticalNote": {
+    "message": " — contents are identical"
+  },
+  "textDiffBlockyNote": {
+    "message": "Diff region too large — shown as whole blocks (structural view is unaffected)"
+  },
+  "textDiffTruncatedNote": {
+    "message": "Content too large — only the first $count$ lines shown",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "textDiffGap": {
+    "message": "  ⋯ $count$ identical lines ⋯",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  }
+}
