@@ -1,0 +1,9 @@
+{
+  "name": "json-formatter-extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test && python3 -m unittest discover -s tests -p 'test_*.py'",
+    "check:release": "python3 build_release.py --check"
+  }
+}

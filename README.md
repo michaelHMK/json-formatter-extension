@@ -1,93 +1,127 @@
-# JSON 格式化与对比工具
+# JSON Formatter and Compare
 
-Chrome 扩展（Manifest V3）：零权限、纯本地、无广告的 JSON 工具箱。采用 Web Worker 解析与懒加载渲染，减少处理大 JSON 时的界面阻塞。不收集任何数据，不发起网络请求。
+English | [简体中文](README.zh-CN.md)
 
-当前版本见 [`manifest.json`](manifest.json) 中的 `version` 字段。
+A Chrome extension (Manifest V3) that provides a local, ad-free JSON toolbox with no permissions required. Web Worker processing and lazy rendering help keep the interface responsive when working with large JSON documents. The extension collects no data and makes no network requests.
 
-## 功能
+See the `version` field in [`manifest.json`](manifest.json) for the current version.
 
-| 页面 | 说明 |
+## Features
+
+| Tool | Features |
 | --- | --- |
-| **JSON 格式化** | 美化（2 空格 / 4 空格 / Tab）；语法错误提示，浏览器提供位置时显示行列并跳转；树形折叠、按层级展开、key/值搜索与高亮跳转；一键复制 |
-| **JSON 压缩** | 去除空白压缩为单行；提示无效 JSON，显示可用的行列位置 |
-| **JSON 转义 / 去转义** | 文本与 JSON 字符串互转，一键复制 |
-| **JSON 对比** | 双 JSON 结构化 diff（新增 / 删除 / 变更 / 类型变化）；数组按下标或主键配对；可忽略指定路径；树形高亮与「只看差异」；文本逐行 diff |
+| **JSON Formatter** | Pretty-print with 2 spaces, 4 spaces, or tabs; report syntax errors and show line/column positions with cursor navigation when available; browse collapsible trees, expand by depth, search keys and values, navigate highlighted matches, and copy results |
+| **JSON Minifier** | Remove whitespace to produce a single line; report invalid JSON with line/column positions when available |
+| **JSON Escape / Unescape** | Convert between plain text and escaped JSON string content, with one-click copying |
+| **JSON Compare** | Compare JSON structures for additions, removals, value changes, and type changes; match array elements by index or key; ignore selected paths; highlight differences in trees, show only differences, and compare text line by line |
 
-侧边栏可在各工具页之间切换。界面支持中文（简体）与英文（`_locales/`）。
+Use the sidebar to switch between tools. The interface supports English and Simplified Chinese (`_locales/`).
 
-## 本地加载（开发者模式）
+## Load Locally (Developer Mode)
 
-1. 打开 Chrome，进入 `chrome://extensions/`
-2. 开启右上角 **开发者模式**
-3. 点击 **加载已解压的扩展程序**
-4. 选择本仓库**根目录**（包含 `manifest.json` 的目录，不要选 `dist/` 里的 zip）
-5. 点击工具栏中的扩展图标，即可打开 JSON 工具箱
+1. Open Chrome and go to `chrome://extensions/`.
+2. Enable **Developer mode** in the upper-right corner.
+3. Click **Load unpacked**.
+4. Select the **repository root** containing `manifest.json`, rather than a ZIP file in `dist/`.
+5. Click the extension icon in the toolbar to open the JSON toolbox.
 
-快捷键：多数页面支持 **Cmd/Ctrl + Enter** 执行当前操作。
+Keyboard shortcut: most pages support **Cmd/Ctrl + Enter** to run the current operation.
 
-## 项目结构（简要）
+## Project Structure
 
 ```
-manifest.json          # 扩展清单
-background.js          # Service Worker（打开工具页）
-worker.js              # Web Worker：大 JSON 解析等
-formatter.html/js      # 格式化页
-minify.html            # 压缩页（逻辑在 transform.js）
-escape.html / unescape.html
-compare.html / compare.js
-navigation.js / i18n.js / transform.js
-formatter.css
-icons/                 # 扩展图标（manifest 引用）
-_locales/              # 国际化文案
-gen_icons.py           # 重新生成 icons/ 下 PNG（可选）
-build_release.py       # 发布检查与白名单打包（Python 标准库）
-STORE_LISTING.md       # Chrome 商店上架文案与表单说明
-PRIVACY.md             # 中英文隐私政策（由当前公开仓库托管）
-store-assets/          # 商店截图和宣传图（不打进扩展 ZIP）
+manifest.json          # Extension manifest; load from the repository root
+*.html                 # Stable entry points for the five tool pages
+src/
+  background.js        # Service Worker: opens the toolbox when the extension icon is clicked
+  pages/               # Page interactions, view state, and rendering
+    formatter.js
+    compare.js
+    transform.js       # Shared page logic for minify, escape, and unescape
+  shared/              # Navigation, i18n, feedback, clipboard, basic tree nodes, Worker client
+  core/                # Pure algorithms: JSON formatting, paths, search, structural/text diff
+  worker/
+    index.js           # Web Worker message entry point
+    tasks.js           # Task dispatch, cached search data, and error responses
+styles/app.css         # Shared styles for all five pages
+icons/                 # Extension icons referenced by the manifest
+_locales/              # Translations
+tests/                 # Algorithm and messaging contracts, release validation
+package.json           # Native ES modules and test commands; no third-party dependencies
+gen_icons.py           # Regenerate PNG files in icons/ (optional)
+build_release.py       # Release validation and allowlist packaging using Python's standard library
+STORE_LISTING.md       # Chrome Web Store listing copy and submission guidance
+PRIVACY.md             # English and Chinese privacy policy hosted in the public repository
+store-assets/          # Store screenshots and promotional images, excluded from the extension ZIP
 ```
 
-## 重新生成图标
+Runtime code uses native browser ES modules. No dependency installation or build step is needed to load the extension. Each HTML page loads a single entry module; navigation is rendered before translations are applied, without relying on global functions or the ordering of multiple script tags.
 
-需要 Python 3，无第三方依赖：
+| Boundary | Responsibilities and contracts |
+| --- | --- |
+| `pages → shared` | Pages own their state; shared modules handle browser interactions. The formatter and comparison trees retain their own expansion, search, and difference logic. |
+| `pages/shared → core/json-path` | Tree nodes and algorithms share JSON Pointer encoding so paths remain consistent for keys containing special characters. Other intensive computation runs in the Worker. |
+| `shared/worker-client → worker/index` | `runTask(action, payload)` returns a Promise. Requests and responses are matched by id, and the busy indicator stays active until all requests finish. Task and communication failures both return `ok: false`. |
+| `worker/tasks → core` | Each Worker independently caches the data from its most recent format/minify/parse operation for search. `includeData: false` only omits data from the response sent to the page; it does not clear the cache. |
+| `core` | Algorithms do not depend on the DOM, Chrome APIs, or Worker globals. Invalid input throws an exception, which the task layer converts to an error response. Scanning and restoring original number literals is centralized in `json.js`. |
+
+Shared modules extract responsibilities that are already common across pages; the two tree views keep their distinct behavior instead of using a general-purpose rendering framework. To add a task, place its algorithm in `core/` and connect it through `worker/tasks.js`. Add any new runtime files to the allowlist in `build_release.py` as well.
+
+## Development Checks
+
+Requires Node.js 20+ and Python 3. No `npm install` is needed:
+
+```bash
+npm test
+python3 build_release.py --check
+```
+
+Tests cover number literals and special keys, cached search data and result limits, structural and text comparisons, concurrent Worker requests and failure responses, and transitive module dependencies in the release package. Browser interactions should also be checked using the checklist below.
+
+For normal use, load the extension as described above. To preview the pages, run `python3 -m http.server 8000` and visit `http://localhost:8000/formatter.html`. Native modules cannot be loaded by opening the HTML files directly through `file://`, and HTTP previews do not provide Chrome's extension internationalization API.
+
+## Regenerate Icons
+
+Requires Python 3 with no third-party dependencies:
 
 ```bash
 python3 gen_icons.py
 ```
 
-输出目录为 `icons/`（会覆盖现有 PNG）。
+The output directory is `icons/`. Existing PNG files are overwritten.
 
-## 打包发布
+## Build a Release
 
-需要 Python 3，无第三方依赖：
+Requires Python 3 with no third-party dependencies:
 
 ```bash
 python3 build_release.py --check
 python3 build_release.py
 ```
 
-脚本检查版本号、两种语言的名称和简介长度、翻译键、图标尺寸及 HTML 资源引用，再仅打包 20 个运行时文件。输出为 `dist/json-formatter-extension-<version>.zip` 和对应的 `.zip.sha256` 校验文件。`manifest.json` 位于 ZIP 根目录；文档、截图、开发配置和 `.git` 不会被收录。`dist/` 已加入 Git 忽略规则。
+The script validates the version, name and description lengths in both languages, translation keys, icon dimensions, HTML resource references, and relative paths for JavaScript static imports and the Worker entry point. It then packages runtime files from an explicit allowlist. Output is written to `dist/json-formatter-extension-<version>.zip` with a matching `.zip.sha256` checksum file. The ZIP contains `manifest.json` at its root and excludes tests, documentation, screenshots, development configuration, and `.git`. The `dist/` directory is ignored by Git.
 
-上传前将 ZIP 解压到一个新目录，在 `chrome://extensions/` 中加载该目录并完成下面的检查。以后发布更新时先提高 `manifest.json` 的版本号，再重新打包。
+Before uploading, extract the ZIP to a new directory, load that directory through `chrome://extensions/`, and complete the checks below. For subsequent releases, increase the version in `manifest.json` before rebuilding.
 
-### 首次上架
+### First Store Submission
 
-1. 在 [Chrome Web Store 开发者控制台](https://chrome.google.com/webstore/devconsole/)注册账号，阅读并接受协议，支付页面显示的一次性注册费。参见[注册说明](https://developer.chrome.com/docs/webstore/register)。
-2. 填写发布者名称并验证联系邮箱，按控制台提示完成账号信息。为 Google 账号启用两步验证；这是发布前的[官方要求](https://developer.chrome.com/docs/webstore/program-policies/two-step-verification)。
-3. 隐私政策由当前公开仓库托管：填写 [公开隐私政策网址](https://github.com/michaelHMK/json-formatter-extension/blob/main/PRIVACY.md)。修改本地 [PRIVACY.md](PRIVACY.md) 后，提交并推送到 `main` 分支即可更新公开版本；上传商店前用未登录窗口确认链接可访问。
-4. 新建商店条目，上传 `dist/` 下的扩展 ZIP，按 [STORE_LISTING.md](STORE_LISTING.md) 填写中英文描述、隐私表单和测试说明，并上传 `store-assets/` 下对应语言的图片。
-5. 选择分发地区和公开可见性，检查预览后提交审核。可选择审核通过后自动发布或自行发布，参见[官方发布流程](https://developer.chrome.com/docs/webstore/publish)。
+1. Register an account in the [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole/), read and accept the agreement, and pay the one-time registration fee shown there. See the [registration instructions](https://developer.chrome.com/docs/webstore/register).
+2. Set your publisher name, verify your contact email, and complete the account details requested by the dashboard. Enable two-step verification on your Google account, as required by the [publishing policy](https://developer.chrome.com/docs/webstore/program-policies/two-step-verification).
+3. Use the [public privacy policy URL](https://github.com/michaelHMK/json-formatter-extension/blob/main/PRIVACY.md), hosted in this repository. To update the public policy, edit [PRIVACY.md](PRIVACY.md), then commit and push to `main`. Confirm that the link is accessible in a signed-out browser window before submitting.
+4. Create a store listing and upload the extension ZIP from `dist/`. Follow [STORE_LISTING.md](STORE_LISTING.md) for English and Chinese descriptions, privacy declarations, and testing instructions. Upload the images for each language from `store-assets/`.
+5. Choose distribution regions and public visibility, review the preview, and submit for review. You can publish automatically after approval or publish manually; see the [official publishing process](https://developer.chrome.com/docs/webstore/publish).
 
-### 上传前功能检查
+### Pre-Upload Functional Checklist
 
-- 点击扩展图标打开工具页；在扩展管理页确认没有加载错误。
-- 检查格式化的三种缩进、无效 JSON 定位、树形展开、搜索、复制与清空。
-- 检查压缩、转义和去转义，包括换行、引号、反斜杠和 Unicode 文本。
-- 检查 JSON 对比的新增、删除、值及类型变化，数组主键配对、忽略路径、只看差异与文本对比。
-- 在中文和英文浏览器语言下检查文字，断网后重复主要操作。
-- 发布材料与实际版本保持一致，不承诺未经验证的文件处理速度。
+- Click the extension icon to open the toolbox and confirm that the extension management page shows no loading errors.
+- Check all three indentation options, invalid JSON location reporting, tree expansion, search, copying, and clearing.
+- Check minify, escape, and unescape with newlines, quotes, backslashes, and Unicode text.
+- Check additions, removals, value changes, and type changes in JSON Compare, along with array key matching, ignored paths, differences-only mode, and text comparison.
+- Check interface text with both English and Chinese browser languages, then repeat the main operations while offline.
+- Keep release materials consistent with the actual version, and avoid claims about file-processing speed that have not been verified.
 
-## 隐私
+## Privacy
 
-- 不申请 host、storage 等敏感权限（见 `manifest.json`）
-- 所有处理在浏览器本地完成，无第三方 SDK、无遥测
-- 完整说明见 [隐私政策](PRIVACY.md)；商店使用[公开托管版本](https://github.com/michaelHMK/json-formatter-extension/blob/main/PRIVACY.md)
+- No sensitive permissions, such as host access or storage, are requested; see `manifest.json`.
+- All processing happens locally in the browser, with no third-party SDKs or telemetry.
+- See the [privacy policy](PRIVACY.md) for details. Use the [publicly hosted version](https://github.com/michaelHMK/json-formatter-extension/blob/main/PRIVACY.md) for the store listing.

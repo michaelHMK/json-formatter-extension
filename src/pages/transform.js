@@ -1,4 +1,10 @@
-'use strict';
+import { initializePage } from '../shared/page.js';
+import { t } from '../shared/i18n.js';
+import { createTaskRunner } from '../shared/worker-client.js';
+import { createFeedback } from '../shared/feedback.js';
+import { copyText } from '../shared/clipboard.js';
+
+initializePage();
 
 const inputEl = document.getElementById('input');
 const outputEl = document.getElementById('output-text');
@@ -9,56 +15,13 @@ const action = document.body.dataset.action;
 
 let outputText = '';
 
-const worker = new Worker('worker.js');
-let taskSeq = 0;
-const pending = new Map();
+const runTask = createTaskRunner({
+  onBusyChange: (busy) => { busyEl.hidden = !busy; },
+});
 
-worker.onmessage = (e) => {
-  const msg = e.data;
-  const resolve = pending.get(msg.id);
-  if (!resolve) return;
-  pending.delete(msg.id);
-  busyEl.hidden = true;
-  resolve(msg);
-};
-
-function runTask(text) {
-  const id = ++taskSeq;
-  busyEl.hidden = false;
-  return new Promise((resolve) => {
-    pending.set(id, resolve);
-    worker.postMessage({ id, action, text });
-  });
-}
-
-function setStatus(text) {
-  statusEl.textContent = text;
-}
-
-function showError(text) {
-  errorEl.textContent = text;
-  errorEl.hidden = false;
-}
-
-function hideError() {
-  errorEl.hidden = true;
-  errorEl.textContent = '';
-}
-
-function showParseError(text, res) {
-  let msg = t('errParseFailed') + res.error;
-  if (typeof res.line === 'number') {
-    msg = t('errLineCol', [String(res.line), String(res.column)]) + res.error;
-  }
-  showError(msg);
-  if (typeof res.position === 'number') {
-    inputEl.focus();
-    const pos = Math.min(res.position, text.length);
-    inputEl.setSelectionRange(pos, Math.min(pos + 1, text.length));
-    const lineHeight = parseFloat(getComputedStyle(inputEl).lineHeight) || 21;
-    inputEl.scrollTop = Math.max(0, ((res.line || 1) - 3) * lineHeight);
-  }
-}
+const { setStatus, showError, hideError, showParseError } = createFeedback({
+  statusEl, errorEl, inputEl,
+});
 
 async function runTransform() {
   const text = inputEl.value;
@@ -67,7 +30,7 @@ async function runTransform() {
     return;
   }
   hideError();
-  const res = await runTask(text);
+  const res = await runTask(action, { text });
   if (!res.ok) {
     if (action === 'minify') showParseError(text, res);
     else if (action === 'unescape') showError(t('errUnescapeFailed') + res.error);
@@ -90,16 +53,7 @@ async function doCopy() {
     return;
   }
   hideError();
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch (_) {
-    const tmp = document.createElement('textarea');
-    tmp.value = text;
-    document.body.appendChild(tmp);
-    tmp.select();
-    document.execCommand('copy');
-    tmp.remove();
-  }
+  await copyText(text);
   setStatus(t('statusCopied', [text.length.toLocaleString()]));
 }
 

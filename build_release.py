@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import posixpath
 import re
 import struct
 import zipfile
@@ -12,11 +13,23 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parent
 RUNTIME_FILES = (
-    'manifest.json', 'background.js', 'worker.js',
-    'formatter.html', 'formatter.js', 'formatter.css',
-    'compare.html', 'compare.js', 'minify.html',
-    'escape.html', 'unescape.html', 'transform.js', 'navigation.js', 'i18n.js',
+    'manifest.json', 'src/background.js', 'styles/app.css',
+    'formatter.html', 'compare.html', 'minify.html', 'escape.html', 'unescape.html',
+    'src/pages/formatter.js', 'src/pages/compare.js', 'src/pages/transform.js',
+    'src/shared/page.js', 'src/shared/navigation.js', 'src/shared/i18n.js',
+    'src/shared/worker-client.js', 'src/shared/feedback.js',
+    'src/shared/clipboard.js', 'src/shared/json-tree.js',
+    'src/worker/index.js', 'src/worker/tasks.js',
+    'src/core/json.js', 'src/core/json-path.js', 'src/core/parse-error.js',
+    'src/core/escape.js', 'src/core/search.js',
+    'src/core/structural-diff.js', 'src/core/text-diff.js',
 )
+
+
+def check_reference(name, ref, files):
+    resolved = posixpath.normpath(posixpath.join(posixpath.dirname(name), ref))
+    if resolved not in files:
+        raise ValueError(f'{name} 引用了未打包的文件: {ref}')
 
 
 def check_release():
@@ -68,11 +81,24 @@ def check_release():
         if path.suffix == '.html':
             source = path.read_text(encoding='utf-8')
             for ref in re.findall(r'(?:src|href)=[\"\']([^\"\']+)', source):
-                if ref not in files:
-                    raise ValueError(f'{name} 引用了未打包的文件: {ref}')
+                check_reference(name, ref, files)
             for key in re.findall(r'data-i18n(?:-title|-placeholder)?=[\"\']([^\"\']+)', source):
                 if key not in default:
                     raise ValueError(f'{name} 引用了缺失的翻译: {key}')
+        elif path.suffix == '.js':
+            source = path.read_text(encoding='utf-8')
+            # 项目使用静态 ES module 导入及 new URL(..., import.meta.url) Worker 入口。
+            # 除 HTML 外，也验证这些相对引用，避免遗漏间接依赖导致扩展运行时失败。
+            imports = re.findall(
+                r'\b(?:import|export)\s+(?:[^;]*?\s+from\s+)?[\"\']([^\"\']+)[\"\']',
+                source,
+            )
+            urls = re.findall(
+                r'new\s+URL\(\s*[\"\']([^\"\']+)[\"\']\s*,\s*import\.meta\.url\s*\)',
+                source,
+            )
+            for ref in imports + urls:
+                check_reference(name, ref, files)
     print(f'✓ Manifest、图标与 {len(files)} 个发布文件检查通过')
     return version, sorted(files)
 

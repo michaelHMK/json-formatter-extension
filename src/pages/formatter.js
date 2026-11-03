@@ -1,4 +1,12 @@
-'use strict';
+import { initializePage } from '../shared/page.js';
+import { t } from '../shared/i18n.js';
+import { createTaskRunner } from '../shared/worker-client.js';
+import { createFeedback } from '../shared/feedback.js';
+import { copyText } from '../shared/clipboard.js';
+import { appendJsonPath, PATH_SEP } from '../core/json-path.js';
+import { span, primitiveNode } from '../shared/json-tree.js';
+
+initializePage();
 
 /* ================= DOM ================= */
 const $ = (id) => document.getElementById(id);
@@ -17,22 +25,9 @@ const matchInfo = $('match-info');
 const levelBox = $('level-box');
 const levelSelect = $('level-select');
 
-// 与 worker.js 一致：使用 JSON Pointer，转义 key 中的 ~ 和 /，避免路径碰撞
-const PATH_SEP = '/';
-
-function appendJsonPath(path, key) {
-  key = String(key);
-  if (key.includes('~') || key.includes('/')) {
-    key = key.replace(/~/g, '~0').replace(/\//g, '~1');
-  }
-  return path + PATH_SEP + key;
-}
-// 每个容器懒加载时单次渲染的子节点数
 const CHUNK = 200;
 // 搜索命中时，容器子节点数不超过该值才一次性全量渲染
 const FULL_RENDER_LIMIT = 20000;
-// 树视图里单个字符串值的展示上限
-const STRING_PREVIEW = 2000;
 // 单次渲染的节点数预算，防止「展开全部」在超大 JSON 上把页面卡死
 const RENDER_BUDGET = 100000;
 
@@ -53,66 +48,14 @@ const state = {
   renderLimited: false, // 是否因触及预算而截断了展开
 };
 
-/* ================= Worker 通信 ================= */
-const worker = new Worker('worker.js');
-let taskSeq = 0;
-let busyCount = 0;
-const pending = new Map();
-
-worker.onmessage = (e) => {
-  const msg = e.data;
-  const resolve = pending.get(msg.id);
-  if (!resolve) return;
-  pending.delete(msg.id);
-  busyCount = Math.max(0, busyCount - 1);
-  if (busyCount === 0) setBusy(false);
-  resolve(msg);
-};
-
-function runTask(action, payload) {
-  const id = ++taskSeq;
-  busyCount++;
-  setBusy(true);
-  return new Promise((resolve) => {
-    pending.set(id, resolve);
-    worker.postMessage(Object.assign({ id, action }, payload));
-  });
-}
-
-function setBusy(on) {
-  busyEl.hidden = !on;
-}
+const runTask = createTaskRunner({
+  onBusyChange: (busy) => { busyEl.hidden = !busy; },
+});
 
 /* ================= 状态展示 ================= */
-function setStatus(text) {
-  statusEl.textContent = text;
-}
-
-function showError(text) {
-  errorEl.textContent = text;
-  errorEl.hidden = false;
-}
-
-function hideError() {
-  errorEl.hidden = true;
-  errorEl.textContent = '';
-}
-
-// 解析失败：展示行列号，并把光标定位/滚动到出错位置
-function showParseError(text, res) {
-  let msg = t('errParseFailed') + res.error;
-  if (typeof res.line === 'number') {
-    msg = t('errLineCol', [String(res.line), String(res.column)]) + res.error;
-  }
-  showError(msg);
-  if (typeof res.position === 'number') {
-    inputEl.focus();
-    const pos = Math.min(res.position, text.length);
-    inputEl.setSelectionRange(pos, Math.min(pos + 1, text.length));
-    const lineHeight = parseFloat(getComputedStyle(inputEl).lineHeight) || 21;
-    inputEl.scrollTop = Math.max(0, ((res.line || 1) - 3) * lineHeight);
-  }
-}
+const { setStatus, showError, hideError, showParseError } = createFeedback({
+  statusEl, errorEl, inputEl,
+});
 
 /* ================= 视图切换 ================= */
 function updateViewButtons() {
@@ -202,17 +145,7 @@ async function doCopy() {
     return;
   }
   hideError();
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch (_) {
-    // 剪贴板 API 失败时的兜底
-    const tmp = document.createElement('textarea');
-    tmp.value = text;
-    document.body.appendChild(tmp);
-    tmp.select();
-    document.execCommand('copy');
-    tmp.remove();
-  }
+  await copyText(text);
   setStatus(t('statusCopied', [text.length.toLocaleString()]));
 }
 
@@ -251,29 +184,6 @@ function fillSample() {
 }
 
 /* ================= 树形视图 ================= */
-function span(cls, text) {
-  const el = document.createElement('span');
-  el.className = cls;
-  el.textContent = text;
-  return el;
-}
-
-function primitiveNode(value, path) {
-  if (value === null) return span('v null', 'null');
-  if (typeof value === 'string') {
-    let s = JSON.stringify(value);
-    if (s.length > STRING_PREVIEW) {
-      s = s.slice(0, STRING_PREVIEW) + t('strTruncated', [s.length.toLocaleString()]);
-    }
-    return span('v string', s);
-  }
-  if (typeof value === 'number') {
-    const lit = state.numberLiterals && state.numberLiterals[path];
-    return span('v number', lit !== undefined ? lit : String(value));
-  }
-  return span('v bool', String(value));
-}
-
 function renderTree() {
   treeEl.innerHTML = '';
   state.renderedCount = 0;
@@ -307,7 +217,7 @@ function renderEntry(parentEl, key, isIndex, value, path) {
       row.appendChild(span('key', isIndex ? String(key) : JSON.stringify(key)));
       row.appendChild(span('punct', ': '));
     }
-    row.appendChild(primitiveNode(value, path));
+    row.appendChild(primitiveNode(value, path, state.numberLiterals));
   }
   parentEl.appendChild(entry);
 }

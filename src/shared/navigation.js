@@ -1,6 +1,3 @@
-'use strict';
-
-const currentPage = document.body.dataset.page;
 const navItems = [
   {
     id: 'format',
@@ -39,23 +36,26 @@ const navItems = [
   },
 ];
 
-const links = navItems.map((item) => {
-  const active = item.id === currentPage;
-  return `<a class="nav-link${active ? ' active' : ''}" href="${item.href}"${active ? ' aria-current="page"' : ''}>
-    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${item.icon}</svg>
-    <span data-i18n="${item.label}">${item.fallback}</span>
-  </a>`;
-}).join('');
+export function renderNavigation() {
+  const currentPage = document.body.dataset.page;
+  const links = navItems.map((item) => {
+    const active = item.id === currentPage;
+    return `<a class="nav-link${active ? ' active' : ''}" href="${item.href}"${active ? ' aria-current="page"' : ''}>
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${item.icon}</svg>
+      <span data-i18n="${item.label}">${item.fallback}</span>
+    </a>`;
+  }).join('');
 
-document.getElementById('sidebar').innerHTML = `
-  <a class="brand" href="formatter.html">
-    <span class="brand-mark">{ }</span>
-    <span class="brand-name" data-i18n="appName">JSON 工具箱</span>
-  </a>
-  <div class="nav-heading" data-i18n="navTools">工具</div>
-  <nav class="main-nav" aria-label="JSON">${links}</nav>
-  <div class="sidebar-footer">
-    <span class="local-dot" aria-hidden="true"></span>
-    <span data-i18n="localOnly">所有数据仅在本地处理</span>
-  </div>
-`;
+  document.getElementById('sidebar').innerHTML = `
+    <a class="brand" href="formatter.html">
+      <span class="brand-mark">{ }</span>
+      <span class="brand-name" data-i18n="appName">JSON 工具箱</span>
+    </a>
+    <div class="nav-heading" data-i18n="navTools">工具</div>
+    <nav class="main-nav" aria-label="JSON">${links}</nav>
+    <div class="sidebar-footer">
+      <span class="local-dot" aria-hidden="true"></span>
+      <span data-i18n="localOnly">所有数据仅在本地处理</span>
+    </div>
+  `;
+}

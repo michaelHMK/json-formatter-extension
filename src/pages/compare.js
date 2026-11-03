@@ -1,4 +1,11 @@
-'use strict';
+import { initializePage } from '../shared/page.js';
+import { t } from '../shared/i18n.js';
+import { createTaskRunner } from '../shared/worker-client.js';
+import { createFeedback } from '../shared/feedback.js';
+import { appendJsonPath, PATH_SEP } from '../core/json-path.js';
+import { span, primitiveNode } from '../shared/json-tree.js';
+
+initializePage();
 
 /* ================= DOM ================= */
 const $ = (id) => document.getElementById(id);
@@ -21,22 +28,11 @@ const onlyDiffChk = $('only-diff');
 const diffNavEl = $('diff-nav');
 const diffInfoEl = $('diff-info');
 
-// 与 worker.js 一致：使用 JSON Pointer，转义 key 中的 ~ 和 /，避免路径碰撞
-const PATH_SEP = '/';
-
-function appendJsonPath(path, key) {
-  key = String(key);
-  if (key.includes('~') || key.includes('/')) {
-    key = key.replace(/~/g, '~0').replace(/\//g, '~1');
-  }
-  return path + PATH_SEP + key;
-}
 const CHUNK = 200;
 // 差异祖先路径上的容器，子节点数不超过该值才一次性全量渲染
 const FULL_RENDER_LIMIT = 20000;
 // 两棵树共享的渲染节点预算
 const RENDER_BUDGET = 100000;
-const STRING_PREVIEW = 2000;
 // 文本 diff 视图渲染的行数预算
 const TEXT_ROW_BUDGET = 50000;
 
@@ -61,46 +57,14 @@ const state = {
   elemMap: { left: new Map(), right: new Map() },      // path → DOM entry
 };
 
-/* ================= Worker 通信 ================= */
-const worker = new Worker('worker.js');
-let taskSeq = 0;
-let busyCount = 0;
-const pending = new Map();
-
-worker.onmessage = (e) => {
-  const msg = e.data;
-  const resolve = pending.get(msg.id);
-  if (!resolve) return;
-  pending.delete(msg.id);
-  busyCount = Math.max(0, busyCount - 1);
-  if (busyCount === 0) busyEl.hidden = true;
-  resolve(msg);
-};
-
-function runTask(action, payload) {
-  const id = ++taskSeq;
-  busyCount++;
-  busyEl.hidden = false;
-  return new Promise((resolve) => {
-    pending.set(id, resolve);
-    worker.postMessage(Object.assign({ id, action }, payload));
-  });
-}
+const runTask = createTaskRunner({
+  onBusyChange: (busy) => { busyEl.hidden = !busy; },
+});
 
 /* ================= 状态展示 ================= */
-function setStatus(text) {
-  statusEl.textContent = text;
-}
-
-function showError(text) {
-  errorEl.textContent = text;
-  errorEl.hidden = false;
-}
-
-function hideError() {
-  errorEl.hidden = true;
-  errorEl.textContent = '';
-}
+const { setStatus, showError, hideError } = createFeedback({
+  statusEl, errorEl,
+});
 
 /* ================= 对比主流程 ================= */
 async function doCompare() {
@@ -187,30 +151,6 @@ function updateStatus() {
 }
 
 /* ================= 双树渲染 ================= */
-function span(cls, text) {
-  const el = document.createElement('span');
-  el.className = cls;
-  el.textContent = text;
-  return el;
-}
-
-function primitiveNode(value, path, side) {
-  if (value === null) return span('v null', 'null');
-  if (typeof value === 'string') {
-    let s = JSON.stringify(value);
-    if (s.length > STRING_PREVIEW) {
-      s = s.slice(0, STRING_PREVIEW) + t('strTruncated', [s.length.toLocaleString()]);
-    }
-    return span('v string', s);
-  }
-  if (typeof value === 'number') {
-    const literals = side === 'left' ? state.leftNumberLiterals : state.rightNumberLiterals;
-    const lit = literals && literals[path];
-    return span('v number', lit !== undefined ? lit : String(value));
-  }
-  return span('v bool', String(value));
-}
-
 function refreshTrees() {
   renderTrees();
   if (state.result && state.result.diffs.length) goToDiff(0);
@@ -255,7 +195,7 @@ function renderEntry(parentEl, key, isIndex, value, path, side) {
       row.appendChild(span('key', isIndex ? String(key) : JSON.stringify(key)));
       row.appendChild(span('punct', ': '));
     }
-    row.appendChild(primitiveNode(value, path, side));
+    row.appendChild(primitiveNode(value, path, side === 'left' ? state.leftNumberLiterals : state.rightNumberLiterals));
   }
   parentEl.appendChild(entry);
 }
