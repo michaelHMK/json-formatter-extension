@@ -41,14 +41,20 @@ def png_bytes(width, height, rgba):
 
 
 def render(size):
-    radius = size // 5
-    cell = max(1, size // 12)
+    # 商店图标为 128px 画布，方形图案占 96px，四周透明留白 16px。
+    padding = 16 if size == 128 else 0
+    artwork_size = size - padding * 2
+    radius = artwork_size // 5
+    cell = max(1, artwork_size // 12)
     gw, gh = len(GLYPH[0]) * cell, len(GLYPH) * cell
     ox, oy = (size - gw) // 2, (size - gh) // 2
 
     def in_rounded_rect(x, y):
-        dx = max(radius - x, 0, x - (size - 1 - radius))
-        dy = max(radius - y, 0, y - (size - 1 - radius))
+        x, y = x - padding, y - padding
+        if not (0 <= x < artwork_size and 0 <= y < artwork_size):
+            return False
+        dx = max(radius - x, 0, x - (artwork_size - 1 - radius))
+        dy = max(radius - y, 0, y - (artwork_size - 1 - radius))
         return dx * dx + dy * dy <= radius * radius
 
     def in_glyph(x, y):

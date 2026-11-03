@@ -3,7 +3,7 @@
     "message": "JSON Formatter & Compare"
   },
   "extDescription": {
-    "message": "Zero-permission, fully local, ad-free JSON toolbox: fast on 10MB+ files — format, minify, tree view with search, plus structural/text diff of two JSONs with key-based array matching. No data collection."
+    "message": "Format, minify, escape and compare JSON locally. Search tree views and match arrays by key. No ads or data collection."
   },
   "actionTitle": {
     "message": "Open JSON Formatter"
