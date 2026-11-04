@@ -13,7 +13,7 @@
     <path d="M69 8h6q7 0 7 8v18q0 13 10 13-10 0-10 13v18q0 8-7 8h-6"/>
   </g>
   <text x="190" y="112" fill="#e3e7ff" font-family="Noto Sans CJK SC, sans-serif" font-size="22" font-weight="700" letter-spacing="3">本地 JSON 工具</text>
-  <text x="80" y="250" fill="#fff" font-family="Noto Sans CJK SC, sans-serif" font-size="72" font-weight="700" letter-spacing="-2">JSON工具箱</text>
+  <text x="80" y="250" fill="#fff" font-family="Noto Sans CJK SC, sans-serif" font-size="72" font-weight="700" letter-spacing="-2">JSON 工具箱</text>
   <text x="80" y="330" fill="#e1e3ff" font-family="Noto Sans CJK SC, sans-serif" font-size="38" letter-spacing="-1">格式化 · 搜索 · 对比</text>
   <text x="83" y="402" fill="#e0e5ff" font-family="Noto Sans CJK SC, sans-serif" font-size="25">高性能 · 重隐私 · 纯本地</text>
   <circle cx="89" cy="459" r="5" fill="#a8efd7"/>

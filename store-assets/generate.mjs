@@ -28,7 +28,7 @@ async function capture(page, name, width, height) {
 }
 
 for (const [locale, directory] of [['en-US', 'en'], ['zh-CN', 'zh_CN']]) {
-  const brand = directory === 'zh_CN' ? 'JSON工具箱' : 'JSON Toolbox';
+  const brand = directory === 'zh_CN' ? 'JSON 工具箱' : 'JSON Toolbox';
   const profile = await mkdtemp(join(tmpdir(), 'json-toolbox-store-'));
   let context;
   try {

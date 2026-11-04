@@ -23,7 +23,7 @@
     <rect x="126" y="62" width="92" height="22" rx="5" fill="#d5f5e6"/>
     <path d="M136 73h10m-5-5v10m15-5h46" stroke="#23966b" stroke-width="4" stroke-linecap="round"/>
   </g>
-  <text x="29" y="208" fill="#fff" font-family="Noto Sans CJK SC, sans-serif" font-size="32" font-weight="700">JSON工具箱</text>
+  <text x="29" y="208" fill="#fff" font-family="Noto Sans CJK SC, sans-serif" font-size="32" font-weight="700">JSON 工具箱</text>
   <text x="29" y="239" fill="#dddfff" font-family="Noto Sans CJK SC, sans-serif" font-size="18">格式化 · 搜索 · 对比</text>
   <text x="29" y="264" fill="#d1d8fb" font-family="Noto Sans CJK SC, sans-serif" font-size="14">高性能 · 重隐私 · 纯本地</text>
 </svg>
