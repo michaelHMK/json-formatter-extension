@@ -273,27 +273,8 @@
       }
     }
   },
-  "showMore": {
-    "message": "显示更多（已显示 $shown$ / $total$）",
-    "placeholders": {
-      "shown": {
-        "content": "$1"
-      },
-      "total": {
-        "content": "$2"
-      }
-    }
-  },
   "strTruncated": {
     "message": " …（共 $count$ 字符，已截断展示）",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
-  },
-  "renderLimitedTree": {
-    "message": "结构过大，已展开约 $count$ 个节点，更深层级请手动展开",
     "placeholders": {
       "count": {
         "content": "$1"
@@ -435,39 +416,17 @@
   "diffKeyFallback": {
     "message": "；部分数组元素无主键，已按下标对比"
   },
-  "diffRenderLimited": {
-    "message": "；结构过大，仅部分展开"
-  },
   "diffIdenticalNote": {
     "message": "，两边内容一致"
   },
   "textDiffBlockyNote": {
     "message": "差异段过大，已按整块展示（结构对比视图不受此限制）"
   },
-  "textDiffTruncatedNote": {
-    "message": "内容过大，仅显示前 $count$ 行",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
-  },
   "textDiffGap": {
     "message": "  ⋯ $count$ 行相同 ⋯",
     "placeholders": {
       "count": {
         "content": "$1"
-      }
-    }
-  },
-  "showMoreRange": {
-    "message": "显示另外 $count$ 项（此处尚余 $remaining$ 项）",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      },
-      "remaining": {
-        "content": "$2"
       }
     }
   }

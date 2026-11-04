@@ -410,3 +410,26 @@ button.primary:hover { background: var(--accent-hover); border-color: var(--acce
   .compare-result-title .pane-actions { justify-content: flex-start; }
   .compare-result-title .status { max-width: none; }
 }
+
+/* Large text: the scroll surface represents the complete indexed output. */
+#output-text.virtual-text, #text-view.virtual-text {
+  position: relative;
+  padding: 0;
+  overflow-anchor: none;
+  tab-size: 2;
+  font-variant-ligatures: none;
+}
+.virtual-text-spacer { pointer-events: none; }
+.virtual-text-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: hidden;
+  contain: layout paint;
+}
+.virtual-text-row { position: absolute; left: 0; right: 0; white-space: pre; }
+.virtual-text-row > span { display: inline-block; white-space: pre; }
+.virtual-text-row.del { background: var(--del-bg); color: var(--del-text); }
+.virtual-text-row.add { background: var(--add-bg); color: var(--add-text); }
+.virtual-text-row.gap { color: var(--text-dim); font-style: italic; }
+.virtual-text-selected .virtual-text-row { background: Highlight; color: HighlightText; }

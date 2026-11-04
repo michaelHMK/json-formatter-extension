@@ -2,7 +2,7 @@
 
 [English](README.md) | 简体中文
 
-Chrome 扩展（Manifest V3）：零权限、纯本地、无广告的 JSON 工具箱。采用 Web Worker 解析与懒加载渲染，减少处理大 JSON 时的界面阻塞。不收集任何数据，不发起网络请求。
+Chrome 扩展（Manifest V3）：零权限、纯本地、无广告的 JSON 工具箱。采用 Web Worker 解析与虚拟滚动渲染，减少处理大 JSON 时的界面阻塞。不收集任何数据，不发起网络请求。
 
 当前版本见 [`manifest.json`](manifest.json) 中的 `version` 字段。
 
@@ -38,7 +38,7 @@ src/
     formatter.js
     compare.js
     transform.js       # 压缩、转义、去转义共用页面逻辑
-  shared/              # 导航、国际化、错误展示、复制、基础树节点与 Worker 客户端
+  shared/              # 导航、国际化、虚拟树/文本视图、复制与 Worker 协议
   core/                # 纯算法：JSON 排版、路径、搜索、结构对比、文本对比等
   worker/
     index.js           # Web Worker 消息入口
@@ -61,12 +61,12 @@ store-assets/          # 商店截图和宣传图（不打进扩展 ZIP）
 | 边界 | 职责与约定 |
 | --- | --- |
 | `pages → shared` | 页面管理自己的状态；共享层负责浏览器交互。格式化树和对比树保留各自的展开、搜索及差异逻辑。 |
-| `pages/shared → core/json-path` | 树节点与算法共用 JSON Pointer 编码，避免特殊 key 的路径不一致。其余重计算通过 Worker 执行。 |
-| `shared/worker-client → worker/index` | `runTask(action, payload)` 返回 Promise；请求按 id 配对，全部完成才结束忙碌状态；任务或通信失败统一返回 `ok: false`。 |
-| `worker/tasks → core` | 每个 Worker 独立缓存最近一次 format/minify/parse 的数据供 search 使用。`includeData: false` 仅省略传回页面的数据，不清除缓存。 |
+| `pages/shared → core` | 视图使用 JSON Pointer 与文本行偏移索引；JSON 解析、搜索与对比通过 Worker 执行。 |
+| `shared/worker-client → worker/index` | 请求按 id 配对，全部完成才结束忙碌状态。页面启用串行队列，同类未发送任务只保留最新输入；清空取消排队任务，取消结果带 `cancelled: true`。 |
+| `worker/tasks → core` | 每个 Worker 独立缓存文档与最近一次对比。页面通过 `retainSnapshot`/`snapshotId` 复用解析结果；`includeData: false` 省略对象传输，切树视图再取。清空使快照失效，压缩页不保留不需要的搜索数据。 |
 | `core` | 不依赖 DOM、Chrome API 或 Worker 全局对象；无效输入抛出异常，由任务层转换为错误响应。数字原文字面量的扫描与恢复集中在 `json.js`。 |
 
-共享模块只提取已有的共同职责；两种树视图不通过通用渲染框架强行合并。新增任务时，先将算法放入 `core/`，再接入 `worker/tasks.js`；新增运行时文件还需加入 `build_release.py` 的白名单。
+共享虚拟视图负责窗口索引和 DOM 生命周期；页面保留各自的搜索、配对、筛选和导航逻辑。新增任务时，先将算法放入 `core/`，再接入 `worker/tasks.js`；新增运行时文件还需加入 `build_release.py` 的白名单。
 
 ## 开发验证
 
@@ -83,7 +83,7 @@ python3 build_release.py --check
 
 `npm run bench` 运行搜索和对比算法基准，每个场景预热 2 次、测量 7 次取中位数。脚本支持传入旧版模块/源码目录，方便在同一环境比较；内存数据是调用前后分配增量，包含待回收临时对象，不代表峰值或常驻内存。避免同时运行其他基准。
 
-2026-11-04 在 Linux、i5-12400、Node 24.16.0 上，以 `f070f32` 为基线测得以下结果（合成数据，不代表所有文件或设备）：
+第一轮（`61480ce`），2026-11-04 在 Linux、i5-12400、Node 24.16.0 上，以 `f070f32` 为基线测得以下结果（合成数据，不代表所有文件或设备）：
 
 | 场景 | 优化前 | 优化后 |
 | --- | ---: | ---: |
@@ -95,18 +95,32 @@ python3 build_release.py --check
 
 搜索只保存活动容器游标，只为前 500 个命中生成路径，但仍统计所有命中。结构对比复用路径栈；Myers 文本 diff 只保存有效对角线，该最坏测试场景的追踪缓冲区由约 72 MB 降为 18 MB。相同文本避免建立两份行数组。
 
-树视图显示前 200 项及命中/差异所在子项，未显示区间可继续分页；对象 key 列表在容器内复用。层级展开只作用于按需生成的节点，不再预遍历整个 JSON。清空同时释放 Worker 搜索缓存和页面对比索引，未完成操作的旧响应不会重新填回结果。
+第二轮以 `61480ce` 为基线继续优化：
 
-可选浏览器基准使用开发环境已有的 Playwright 和 Chromium，不增加扩展运行时依赖：
+- 树改为扁平虚拟视图，用区间描述未展开的连续兄弟，滚动只创建视口附近的 DOM。百万元素数组不为每项预建行对象；层级展开、特殊 key、搜索跳转、差异筛选和主键同步继续可用，不再靠 10 万节点预算或「更多」按钮控制渲染。
+- 文本保留完整原文和紧凑行偏移索引，按行与列窗口渲染，支持超长单行及超过浏览器滚动尺寸上限的结果。文本 diff 用区间索引，不再只显示前 50,000 行。小结果保留原生文本显示。
+- Worker 缓存当前文档及对比快照，切换视图不再重复解析，也不在纯文本比较时传输左右对象。串行队列在发送前合并过期任务；清空取消排队任务并释放缓存。
+- 结构对比改用迭代活动帧。20,000 层合成数据从栈溢出变为约 7 ms，50,000 条常规结构相等对比约 24 → 22 ms（7 次中位数）。若浏览器无法克隆深层对象，仅该异常路径通过快照原文恢复；普通对象不在主线程重复解析。
+
+本机 Chromium 153 实测：20,000 层 JSON 可通过真实 Worker 返回数据；10.12 MiB 重复对比预热后，传对象/仅传摘要往返中位数约 59/22 ms（包含输入传输，复用缓存解析）。文本组件单独渲染 10 MB／10 万行约 6.4 ms、5 MiB 单行约 8.1 ms，DOM 分别为 80 和 4 个；这些是组件单次测量，不含输入框、Worker 解析和传输，不能当成整个操作耗时。
+
+`bench/tree-rendering.mjs` 用同一个最小 DOM 比较视图生成开销：200×200 数值展开从约 183 → 12 ms，DOM 从 242,412 → 193；访问 12 万基础值的末尾从 402 → 1 ms。它验证分配和节点规模，不包含浏览器布局/绘制。实际浏览器由下面的验证入口覆盖。
+
+可选浏览器验证使用开发环境已有的 Playwright 和 Chromium，不增加扩展运行时依赖：
 
 ```bash
-PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node bench/browser.mjs . --verify
-# 使用自定义 Chromium 时额外设置 CHROMIUM_EXECUTABLE=/path/to/chromium
+# 若本地可直接 import playwright，则无需 PLAYWRIGHT_MODULE。
+export PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs
+# 可选：export CHROMIUM_EXECUTABLE=/path/to/chromium
+node bench/browser.mjs . --verify
+node bench/text-view.mjs
+node bench/tree-view.mjs
+node bench/worker-transfer.mjs
 ```
 
-它启动临时本地 HTTP 服务并验证远端命中、分页、差异导航及清空。在 Chromium 153 的一次前后对照中，2 万项数组末尾单个差异的双树节点从 40,002 降为 404，对比至绘制完成约 787 → 81 ms；搜索节点从 20,001 降为 202。浏览器耗时包含 Worker、传输、DOM 和绘制；搜索还包含 300 ms 防抖，因此不能与算法基准直接比较。HTTP 预览不验证扩展安装及 Chrome 国际化。
+各入口启动临时本地 HTTP 服务，检查远端命中、长行/滚动末尾、复制、双树导航、视图切换、深层传输及清空；HTTP 预览不验证扩展安装及 Chrome 国际化。`bench/text-rendering.mjs` 是候选渲染方案的独立实验，实际组件数据以 `text-view.mjs` 为准。基准不要同时运行。
 
-当前仍完整解析输入并在需要树视图时跨 Worker 传输对象，文本视图也保留完整输出；它不是流式解析器或滚动虚拟列表。极深结构的递归对比/渲染以及大量同时展开的节点仍有限制。文本 diff 中间差异超过 3,000 行时继续采用整块替换。若进一步面向超大文件，应先对实际文件测量这些环节。
+边界：输入和结果仍完整保留在内存中，不是流式解析器；展开全部仍需扫描容器并建立逻辑索引。大结果的原生浏览器查找只覆盖已挂载的窗口，完整 JSON 可通过树搜索定位，完整文本可用复制按钮或聚焦结果后 Ctrl/Cmd+A、C 获取。文本 diff 中间差异超过 3,000 行仍采用整块替换。上述测量不是对任意文件、深度或设备的速度保证。
 
 日常使用优先按上文加载扩展。仅预览页面时可运行 `python3 -m http.server 8000`，访问 `http://localhost:8000/formatter.html`；原生模块不支持直接双击 HTML 的 `file://` 方式，HTTP 预览也不提供 Chrome 扩展国际化 API。
 

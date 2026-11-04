@@ -77,6 +77,11 @@ function myersOps(a, b) {
 export function makeTextDiff(text, text2, indent) {
   const aText = formatJson(text, { indent }).text;
   const bText = text === text2 ? aText : formatJson(text2, { indent }).text;
+  return diffFormattedText(aText, bText);
+}
+
+// Worker 可直接比较会话里已格式化的文本，不重复解析和排版。
+export function diffFormattedText(aText, bText) {
   if (aText === bText) {
     let count = 1;
     let newline = -1;

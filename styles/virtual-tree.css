@@ -1,0 +1,9 @@
+#tree.virtual-tree, .diff-tree.virtual-tree {
+  padding: 0;
+  overflow-anchor: none;
+}
+.virtual-tree-spacer { position: relative; min-width: 100%; }
+.virtual-tree-layer { position: absolute; left: 0; width: max-content; min-width: 100%; }
+.virtual-tree .entry { box-sizing: border-box; height: var(--tree-row-height, 24px); line-height: var(--tree-row-height, 24px); }
+.virtual-tree .row { height: var(--tree-row-height, 24px); line-height: var(--tree-row-height, 24px); }
+.virtual-tree .toggle:focus-visible { outline: 1px solid var(--accent); border-radius: 3px; }

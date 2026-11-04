@@ -2,7 +2,7 @@
 
 English | [简体中文](README.zh-CN.md)
 
-A Chrome extension (Manifest V3) that provides a local, ad-free JSON toolbox with no permissions required. Web Worker processing and lazy rendering help keep the interface responsive when working with large JSON documents. The extension collects no data and makes no network requests.
+A Chrome extension (Manifest V3) that provides a local, ad-free JSON toolbox with no permissions required. Web Worker processing and virtual scrolling help keep the interface responsive when working with large JSON documents. The extension collects no data and makes no network requests.
 
 See the `version` field in [`manifest.json`](manifest.json) for the current version.
 
@@ -38,7 +38,7 @@ src/
     formatter.js
     compare.js
     transform.js       # Shared page logic for minify, escape, and unescape
-  shared/              # Navigation, i18n, feedback, clipboard, basic tree nodes, Worker client
+  shared/              # Navigation, i18n, virtual tree/text views, clipboard, Worker protocol
   core/                # Pure algorithms: JSON formatting, paths, search, structural/text diff
   worker/
     index.js           # Web Worker message entry point
@@ -61,12 +61,12 @@ Runtime code uses native browser ES modules. No dependency installation or build
 | Boundary | Responsibilities and contracts |
 | --- | --- |
 | `pages → shared` | Pages own their state; shared modules handle browser interactions. The formatter and comparison trees retain their own expansion, search, and difference logic. |
-| `pages/shared → core/json-path` | Tree nodes and algorithms share JSON Pointer encoding so paths remain consistent for keys containing special characters. Other intensive computation runs in the Worker. |
-| `shared/worker-client → worker/index` | `runTask(action, payload)` returns a Promise. Requests and responses are matched by id, and the busy indicator stays active until all requests finish. Task and communication failures both return `ok: false`. |
-| `worker/tasks → core` | Each Worker independently caches the data from its most recent format/minify/parse operation for search. `includeData: false` only omits data from the response sent to the page; it does not clear the cache. |
+| `pages/shared → core` | Views use JSON Pointer encoding and line-offset indexes. JSON parsing, search, and comparison run in the Worker. |
+| `shared/worker-client → worker/index` | Requests match by id and busy lasts until all finish. Pages enable a serial queue that coalesces unsent work by key; clear discards queued work, whose responses carry `cancelled: true`. |
+| `worker/tasks → core` | Each Worker caches its current document/comparison. `retainSnapshot`/`snapshotId` reuse parsing; `includeData: false` defers object transfer until tree view is needed. Clear invalidates snapshots, and the minify page does not retain unused search data. |
 | `core` | Algorithms do not depend on the DOM, Chrome APIs, or Worker globals. Invalid input throws an exception, which the task layer converts to an error response. Scanning and restoring original number literals is centralized in `json.js`. |
 
-Shared modules extract responsibilities that are already common across pages; the two tree views keep their distinct behavior instead of using a general-purpose rendering framework. To add a task, place its algorithm in `core/` and connect it through `worker/tasks.js`. Add any new runtime files to the allowlist in `build_release.py` as well.
+Shared virtual renderers own viewport indexing and DOM lifecycles; pages retain their distinct search, pairing, filtering, and navigation behavior. To add a task, place its algorithm in `core/` and connect it through `worker/tasks.js`. Add any new runtime files to the allowlist in `build_release.py` as well.
 
 ## Development Checks
 
@@ -83,7 +83,7 @@ Tests cover number literals and special keys, cached search data and result limi
 
 Run `npm run bench` for search and diff benchmarks. Each case has two warmups and seven measured samples; the scripts report medians and accept a baseline module/source directory. Memory deltas include temporary allocations awaiting GC and are neither peak nor retained memory. Run benchmarks sequentially.
 
-On 2026-11-04, Linux, i5-12400, Node 24.16.0, comparing against `f070f32` with synthetic inputs:
+First round (`61480ce`), on 2026-11-04, Linux, i5-12400, Node 24.16.0, comparing against `f070f32` with synthetic inputs:
 
 | Scenario | Before | After |
 | --- | ---: | ---: |
@@ -95,18 +95,32 @@ On 2026-11-04, Linux, i5-12400, Node 24.16.0, comparing against `f070f32` with s
 
 Search reuses active traversal cursors and generates paths only for the first 500 matches while counting every match. Structural diff reuses path stacks. Myers diff stores only active diagonals, reducing trace buffers from about 72 MB to 18 MB in this worst-case fixture; identical text avoids two line arrays.
 
-Trees render the first 200 children plus relevant matches/differences, with gaps loaded on demand. Object keys are cached per container, and expansion levels no longer require a full-tree traversal. Clear releases Worker search data and comparison indexes, and discards stale responses.
+The second round uses `61480ce` as its baseline:
 
-An optional browser benchmark uses an existing development installation of Playwright and Chromium, with no extension runtime dependency:
+- Trees now use flat virtual rows. Unexpanded siblings share compressed ranges; only the viewport has DOM entries. A million-element array does not allocate one row object per item. Expansion levels, escaped keys, search navigation, diff filtering, and keyed-array synchronization remain available without a DOM budget or paging buttons.
+- Text views retain complete source strings with compact line-offset indexes, and render both vertical and horizontal windows. Long single lines and results beyond browser scroll-size limits remain accessible. Text diffs no longer stop at 50,000 displayed rows; small outputs keep native text rendering.
+- Worker snapshots reuse parsed documents/comparisons across views. Text-only comparison omits both object trees; tree data is fetched when needed. A serial queue coalesces obsolete requests before transferring them, and clear cancels queued work and releases snapshots.
+- Structural comparison uses iterative active frames. A 20,000-level fixture now completes in about 7 ms instead of overflowing the stack; 50,000 ordinary nested records remain about 24 → 22 ms (seven-sample medians). If a browser cannot clone a deep result, only that exceptional transfer uses snapshot source text for recovery; normal objects are not parsed again on the main thread.
+
+On local Chromium 153, a real Worker successfully returns 20,000-level data. Repeated comparisons of a 10.12 MiB fixture took about 59 ms with object transfer versus 22 ms for summaries after warmup; these round trips include input transfer and reuse cached parsing. Isolated text-component rendering took about 6.4 ms for 10 MB/100,000 lines and 8.1 ms for a 5 MiB single line, with 80 and 4 DOM elements respectively. These component samples exclude input editing, Worker computation, and transfer and are not total operation timings.
+
+`bench/tree-rendering.mjs` compares view generation with the same minimal DOM: expanding a 200×200 numeric fixture took about 183 → 12 ms and 242,412 → 193 DOM elements; reaching the end of 120,000 primitive values took 402 → 1 ms. It measures allocation and node counts, not browser layout or paint. The actual-browser checks below cover rendering and interaction.
+
+Optional browser checks use an existing development installation of Playwright and Chromium, with no extension runtime dependency:
 
 ```bash
-PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node bench/browser.mjs . --verify
-# Set CHROMIUM_EXECUTABLE=/path/to/chromium to use a custom browser binary.
+# Omit PLAYWRIGHT_MODULE if playwright can already be imported locally.
+export PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs
+# Optional: export CHROMIUM_EXECUTABLE=/path/to/chromium
+node bench/browser.mjs . --verify
+node bench/text-view.mjs
+node bench/tree-view.mjs
+node bench/worker-transfer.mjs
 ```
 
-The script starts a temporary local HTTP server and checks distant matches, pagination, diff navigation, and clear. In one Chromium 153 before/after run, comparing two 20,000-element arrays with one change reduced tree entries from 40,002 to 404 and elapsed time through painting from about 787 to 81 ms. Search entries fell from 20,001 to 202. Browser timings include Worker work, transfer, DOM, and painting; search also includes a 300 ms debounce. They are not directly comparable to algorithm timings. HTTP preview does not validate extension installation or Chrome i18n.
+These scripts start temporary local HTTP servers and check distant matches, long-line/scroll endpoints, copying, paired navigation, view switching, deep transfers, and clear. HTTP previews do not validate extension installation or Chrome i18n. `bench/text-rendering.mjs` is a separate candidate-renderer experiment; use `text-view.mjs` for the actual component. Run benchmarks sequentially.
 
-Inputs are still parsed in full, tree data crosses the Worker boundary, and text views retain full output. This is not a streaming parser or a scroll-virtualized list. Very deep recursive comparisons/rendering and many expanded nodes remain limitations. Text diff still falls back to block replacement above 3,000 middle lines. Further work for very large files should measure these stages with representative inputs.
+Limits: complete inputs/results are still held in memory; this is not a streaming parser. Expand-all must still inspect containers and build a logical index. Native browser Find covers only mounted windows in large results; use tree search for JSON navigation and the copy button or focused Ctrl/Cmd+A, C for complete text. Text diff still uses block replacement above 3,000 middle lines. Measurements do not guarantee performance for arbitrary files, depths, or devices.
 
 For normal use, load the extension as described above. To preview the pages, run `python3 -m http.server 8000` and visit `http://localhost:8000/formatter.html`. Native modules cannot be loaded by opening the HTML files directly through `file://`, and HTTP previews do not provide Chrome's extension internationalization API.
 

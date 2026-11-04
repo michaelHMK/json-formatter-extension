@@ -77,3 +77,20 @@ measure('text-50k-equal', () => makeTextDiff(equalText, equalText, '2'), (result
     throw new Error('Expected one unchanged text range');
   }
 });
+
+const deepDepth = 20_000;
+const deepPrefix = '{"child":'.repeat(deepDepth);
+const deepSuffix = '}'.repeat(deepDepth);
+const deepLeft = JSON.parse(deepPrefix + '0' + deepSuffix);
+const deepRight = JSON.parse(deepPrefix + '1' + deepSuffix);
+try {
+  measure('structure-20k-deep', () => diffData(deepLeft, deepRight), (result) => {
+    if (result.total !== 1 || result.diffs[0].leftPath !== '/child'.repeat(deepDepth)) {
+      throw new Error('Expected one complete deep path');
+    }
+  });
+} catch (error) {
+  if (!(error instanceof RangeError)) throw error;
+  // Allows the same benchmark to report stack overflow in older recursive versions.
+  console.log(JSON.stringify({ name: 'structure-20k-deep', error: error.name + ': ' + error.message }));
+}

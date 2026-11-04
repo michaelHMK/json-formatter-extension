@@ -2,8 +2,9 @@ import { initializePage } from '../shared/page.js';
 import { t } from '../shared/i18n.js';
 import { createTaskRunner } from '../shared/worker-client.js';
 import { createFeedback } from '../shared/feedback.js';
-import { PATH_SEP } from '../core/json-path.js';
-import { span, primitiveNode, createChildPathIndex, renderChildPages } from '../shared/json-tree.js';
+import { createChildPathIndex } from '../shared/json-tree.js';
+import { createVirtualTree } from '../shared/virtual-tree.js';
+import { createVirtualTextView } from '../shared/virtual-text.js';
 
 initializePage();
 
@@ -18,6 +19,7 @@ const busyEl = $('busy');
 const resultEl = $('result');
 const structView = $('struct-view');
 const textView = $('text-view');
+const textRenderer = createVirtualTextView(textView);
 const treeLeftEl = $('tree-left');
 const treeRightEl = $('tree-right');
 const arrayModeSel = $('array-mode');
@@ -28,17 +30,13 @@ const onlyDiffChk = $('only-diff');
 const diffNavEl = $('diff-nav');
 const diffInfoEl = $('diff-info');
 
-const CHUNK = 200;
-// 两棵树共享的渲染节点预算
-const RENDER_BUDGET = 100000;
-// 文本 diff 视图渲染的行数预算
-const TEXT_ROW_BUDGET = 50000;
 
 const state = {
   view: 'struct',      // 'struct' | 'text'
   result: null,        // 结构 diff 结果
   textResult: null,    // 文本 diff 结果（每次对比后失效重算）
   treesDirty: true,
+  indexesReady: false,
   leftText: '',
   rightText: '',
   children: { left: new Map(), right: new Map() },
@@ -48,20 +46,21 @@ const state = {
   rightNumberLiterals: null,
   onlyDiff: false,
   diffIndex: -1,
-  renderedCount: 0,
-  renderLimited: false,
   expanded: { left: new Set(), right: new Set() },     // 用户手动展开
+  collapsed: { left: new Set(), right: new Set() },
   force: { left: new Set(), right: new Set() },        // 差异祖先，自动展开
   diffMap: { left: new Map(), right: new Map() },      // path → diff 记录
   pairLR: new Map(),   // 主键配对导致的左路径 → 右路径
   pairRL: new Map(),
-  elemMap: { left: new Map(), right: new Map() },      // path → DOM entry
 };
 
+const treeViews = { left: null, right: null };
 let dataVersion = 0;
 let textRequest = null;
+let dataRequest = null;
 
 const runTask = createTaskRunner({
+  serialize: true,
   onBusyChange: (busy) => { busyEl.hidden = !busy; },
 });
 
@@ -81,13 +80,17 @@ async function doCompare() {
   hideError();
   const version = ++dataVersion;
   textRequest = null;
+  dataRequest = null;
   const ignorePaths = ignoreInput.value
     .split(/[,，\n]/)
     .map((s) => s.trim())
     .filter(Boolean);
   const keyField = arrayModeSel.value === 'key' ? keyFieldInput.value.trim() : '';
-  const res = await runTask('diff', { text: lt, text2: rt, keyField, ignorePaths });
-  if (version !== dataVersion) return;
+  const res = await runTask('diff', {
+    text: lt, text2: rt, keyField, ignorePaths,
+    includeData: state.view === 'struct', retainSnapshot: true,
+  }, { key: 'diff' });
+  if (res.cancelled || version !== dataVersion) return;
   if (!res.ok) {
     showError(t('errCompareFailed') + res.error);
     return;
@@ -101,54 +104,73 @@ async function doCompare() {
   // 文本模式也释放上一轮结构视图，避免隐藏 DOM 的闭包保留旧数据。
   treeLeftEl.innerHTML = '';
   treeRightEl.innerHTML = '';
-  textView.innerHTML = '';
-  state.elemMap.left.clear();
-  state.elemMap.right.clear();
-  buildIndexes();
+  textRenderer.clear();
+  destroyTrees();
+  clearIndexes();
+  state.leftData = res.result.leftData;
+  state.rightData = res.result.rightData;
+  state.leftNumberLiterals = res.result.leftNumberLiterals || null;
+  state.rightNumberLiterals = res.result.rightNumberLiterals || null;
   state.diffIndex = -1;
   resultEl.hidden = false;
   if (state.view === 'text') {
     await loadTextDiff();
     if (version !== dataVersion) return;
   } else {
+    if (!(await ensureComparisonData())) return;
+    if (version !== dataVersion) return;
     refreshTrees();
   }
   updateStatus();
 }
 
+async function ensureComparisonData() {
+  if (state.leftData !== undefined) return true;
+  const comparison = state.result;
+  if (!comparison) return false;
+  const version = dataVersion;
+  dataRequest ||= runTask('comparisonData', { snapshotId: comparison.snapshotId });
+  const res = await dataRequest;
+  if (res.cancelled || version !== dataVersion || comparison !== state.result) return false;
+  dataRequest = null;
+  if (!res.ok) {
+    showError(t('errCompareFailed') + res.error);
+    return false;
+  }
+  Object.assign(comparison, res.result);
+  state.leftData = res.result.leftData;
+  state.rightData = res.result.rightData;
+  state.leftNumberLiterals = res.result.leftNumberLiterals;
+  state.rightNumberLiterals = res.result.rightNumberLiterals;
+  return true;
+}
+
+function clearIndexes() {
+  state.indexesReady = false;
+  for (const side of ['left', 'right']) {
+    state.diffMap[side].clear();
+    state.force[side].clear();
+    state.expanded[side].clear();
+    state.collapsed[side].clear();
+    state.children[side].clear();
+  }
+  state.pairLR.clear();
+  state.pairRL.clear();
+}
+
 function buildIndexes() {
   const r = state.result;
-  state.leftData = r.leftData;
-  state.rightData = r.rightData;
-  state.leftNumberLiterals = r.leftNumberLiterals || null;
-  state.rightNumberLiterals = r.rightNumberLiterals || null;
-  for (const side of ['left', 'right']) {
-    state.diffMap[side] = new Map();
-    state.force[side] = new Set();
-    state.expanded[side] = new Set();
-  }
   state.pairLR = new Map(r.pairs);
   state.pairRL = new Map(r.pairs.map(([l, rr]) => [rr, l]));
   for (const d of r.diffs) {
-    addPath('left', d.leftPath, d);
-    addPath('right', d.rightPath, d);
+    if (d.leftPath !== null) state.diffMap.left.set(d.leftPath, d);
+    if (d.rightPath !== null) state.diffMap.right.set(d.rightPath, d);
   }
   for (const side of ['left', 'right']) {
     state.children[side] = createChildPathIndex(state.diffMap[side].keys());
+    state.force[side] = new Set(state.children[side].keys());
   }
-}
-
-// 把差异路径及其所有祖先登记到 diffMap / force
-function addPath(side, path, d) {
-  if (path === null) return;
-  state.diffMap[side].set(path, d);
-  if (path === '') return;
-  const segs = path.split(PATH_SEP);
-  let cur = '';
-  for (let i = 0; i < segs.length - 1; i++) {
-    cur = i === 0 ? segs[i] : cur + PATH_SEP + segs[i];
-    state.force[side].add(cur);
-  }
+  state.indexesReady = true;
 }
 
 function updateStatus() {
@@ -163,7 +185,6 @@ function updateStatus() {
   ]);
   if (state.result.truncated) text += t('diffStatsTruncated', [String(state.result.diffs.length)]);
   if (state.result.keyFallback) text += t('diffKeyFallback');
-  if (state.renderLimited) text += t('diffRenderLimited');
   if (state.result.total === 0) text += t('diffIdenticalNote');
   setStatus(text);
 }
@@ -175,145 +196,49 @@ function refreshTrees() {
   else updateDiffInfo();
 }
 
+function destroyTrees() {
+  for (const side of ['left', 'right']) {
+    treeViews[side]?.destroy();
+    treeViews[side] = null;
+  }
+}
+
+function pairedPath(side, path) {
+  const pairs = side === 'left' ? state.pairLR : state.pairRL;
+  let ancestor = path;
+  while (ancestor !== '') {
+    const paired = pairs.get(ancestor);
+    if (paired !== undefined) return paired + path.slice(ancestor.length);
+    ancestor = ancestor.slice(0, ancestor.lastIndexOf('/'));
+  }
+  return path;
+}
+
 function renderTrees() {
+  if (!state.indexesReady) buildIndexes();
   state.treesDirty = false;
-  state.renderedCount = 0;
-  state.renderLimited = false;
-  state.elemMap.left = new Map();
-  state.elemMap.right = new Map();
-  treeLeftEl.innerHTML = '';
-  treeRightEl.innerHTML = '';
-  renderRoot(treeLeftEl, state.leftData, 'left');
-  renderRoot(treeRightEl, state.rightData, 'right');
-}
-
-function renderRoot(container, data, side) {
-  const root = document.createElement('div');
-  root.className = 'tree-root';
-  renderEntry(root, null, false, data, '', side);
-  container.appendChild(root);
-}
-
-function renderEntry(parentEl, key, isIndex, value, path, side) {
-  state.renderedCount++;
-  const entry = document.createElement('div');
-  entry.className = 'entry';
-  const d = state.diffMap[side].get(path);
-  if (d) entry.classList.add('diff-' + d.type);
-  state.elemMap[side].set(path, entry);
-
-  const row = document.createElement('div');
-  row.className = 'row';
-  entry.appendChild(row);
-
-  if (value !== null && typeof value === 'object') {
-    renderContainer(entry, row, key, isIndex, value, path, side);
-  } else {
-    row.appendChild(span('toggle-spacer', ''));
-    if (key !== null) {
-      row.appendChild(span('key', isIndex ? String(key) : JSON.stringify(key)));
-      row.appendChild(span('punct', ': '));
-    }
-    row.appendChild(primitiveNode(value, path, side === 'left' ? state.leftNumberLiterals : state.rightNumberLiterals));
-  }
-  parentEl.appendChild(entry);
-}
-
-function renderContainer(entry, row, key, isIndex, value, path, side) {
-  const isArr = Array.isArray(value);
-  const keys = isArr ? null : Object.keys(value);
-  const size = isArr ? value.length : keys.length;
-  const isRoot = path === '';
-  const wantOpen = isRoot || state.expanded[side].has(path) || state.force[side].has(path);
-  const open = wantOpen && state.renderedCount < RENDER_BUDGET;
-  if (wantOpen && !open) state.renderLimited = true;
-
-  const toggle = span('toggle', open ? '▾' : '▸');
-  row.appendChild(toggle);
-  if (key !== null) {
-    row.appendChild(span('key', isIndex ? String(key) : JSON.stringify(key)));
-    row.appendChild(span('punct', ': '));
-  }
-  row.appendChild(span('punct', isArr ? '[' : '{'));
-  const summary = span('summary', t(isArr ? 'treeSummaryItems' : 'treeSummaryKeys', [size.toLocaleString()]));
-  row.appendChild(summary);
-  const closeBracket = span('punct', isArr ? ']' : '}');
-  row.appendChild(closeBracket);
-
-  const children = document.createElement('div');
-  children.className = 'children';
-  entry.appendChild(children);
-
-  // 展开时显示在子节点末尾的闭合括号
-  const footer = document.createElement('div');
-  footer.className = 'row close-row';
-  footer.appendChild(span('toggle-spacer', ''));
-  footer.appendChild(span('punct', isArr ? ']' : '}'));
-  entry.appendChild(footer);
-
-  const renderKids = () => {
-    if (children.dataset.done) return;
-    children.dataset.done = '1';
-    renderChildPages(children, value, path, {
-      keys,
-      requiredPaths: state.children[side].get(path),
+  for (const side of ['left', 'right']) {
+    const options = {
+      data: side === 'left' ? state.leftData : state.rightData,
+      numberLiterals: side === 'left' ? state.leftNumberLiterals : state.rightNumberLiterals,
+      expanded: state.expanded[side],
+      collapsed: state.collapsed[side],
+      forceExpand: state.force[side],
+      requiredChildren: state.children[side],
       onlyRequired: state.onlyDiff,
-      chunkSize: CHUNK,
-      renderEntry: (parent, key, isIndex, child, childPath) =>
-        renderEntry(parent, key, isIndex, child, childPath, side),
-    });
-  };
-
-  const applyOpen = (o, byUser) => {
-    toggle.textContent = o ? '▾' : '▸';
-    children.style.display = o ? '' : 'none';
-    footer.style.display = o ? '' : 'none';
-    summary.style.display = o ? 'none' : '';
-    closeBracket.style.display = o ? 'none' : '';
-    if (byUser) {
-      if (o) state.expanded[side].add(path);
-      else state.expanded[side].delete(path);
-    }
-    if (o) renderKids();
-  };
-
-  const flip = () => {
-    const nowOpen = children.style.display === 'none';
-    applyOpen(nowOpen, true);
-    // 同步另一侧的对应容器（主键配对时下标可能不同，走 pair 映射）
-    const other = side === 'left' ? 'right' : 'left';
-    const pairMap = side === 'left' ? state.pairLR : state.pairRL;
-    const otherEntry = state.elemMap[other].get(pairMap.get(path) || path);
-    if (otherEntry && otherEntry._setOpen) otherEntry._setOpen(nowOpen);
-  };
-
-  // 供另一侧同步 / 差异导航调用，自身不再回传同步
-  entry._setOpen = (o) => {
-    if ((children.style.display !== 'none') !== o) applyOpen(o, true);
-  };
-
-  toggle.addEventListener('click', flip);
-  summary.addEventListener('click', flip);
-  footer.addEventListener('click', flip);
-  row.addEventListener('click', (e) => {
-    if (e.target === row || e.target.classList.contains('punct')) flip();
-  });
-
-  applyOpen(open, false);
+      decorations: state.diffMap[side],
+      onToggle(path, open) {
+        suspendScrollSync();
+        const other = side === 'left' ? 'right' : 'left';
+        treeViews[other]?.setOpen(pairedPath(side, path), open);
+      },
+    };
+    if (treeViews[side]) treeViews[side].update(options);
+    else treeViews[side] = createVirtualTree(side === 'left' ? treeLeftEl : treeRightEl, options);
+  }
 }
 
 /* ================= 差异导航 ================= */
-function ensureVisible(el) {
-  let node = el.parentElement;
-  while (node) {
-    if (node.classList && node.classList.contains('children') && node.style.display === 'none') {
-      const entry = node.parentElement;
-      if (entry && entry._setOpen) entry._setOpen(true);
-    }
-    node = node.parentElement;
-  }
-}
-
 function goToDiff(i) {
   const diffs = state.result ? state.result.diffs : [];
   if (!diffs.length) {
@@ -322,24 +247,14 @@ function goToDiff(i) {
     return;
   }
   state.diffIndex = ((i % diffs.length) + diffs.length) % diffs.length;
-  for (const el of [treeLeftEl, treeRightEl]) {
-    const prev = el.querySelector('.entry.current');
-    if (prev) prev.classList.remove('current');
-  }
-  const d = diffs[state.diffIndex];
+  const diff = diffs[state.diffIndex];
+  // 配对后的两侧行号可能相距很远；本次导航各自定位，避免 scroll 事件互相覆盖。
+  suspendScrollSync();
   for (const side of ['left', 'right']) {
-    const path = side === 'left' ? d.leftPath : d.rightPath;
-    if (path === null) continue;
-    const el = state.elemMap[side].get(path);
-    if (!el) continue;
-    ensureVisible(el);
-    el.classList.add('current');
+    const path = side === 'left' ? diff.leftPath : diff.rightPath;
+    if (path !== null) treeViews[side]?.reveal(path);
+    treeViews[side]?.setCurrent(path);
   }
-  // 滚动以左侧为准；左侧没有（纯新增）则滚右侧
-  const side = d.leftPath !== null ? 'left' : 'right';
-  const path = d.leftPath !== null ? d.leftPath : d.rightPath;
-  const el = state.elemMap[side].get(path);
-  if (el) el.scrollIntoView({ block: 'center' });
   updateDiffInfo();
 }
 
@@ -359,12 +274,13 @@ async function loadTextDiff() {
   const comparison = state.result;
   if (!state.textResult) {
     textRequest ||= runTask('textDiff', {
-      text: state.leftText,
-      text2: state.rightText,
+      ...(comparison.snapshotId === undefined
+        ? { text: state.leftText, text2: state.rightText }
+        : { snapshotId: comparison.snapshotId }),
       indent: '2',
     });
     const res = await textRequest;
-    if (version !== dataVersion || comparison !== state.result) return false;
+    if (res.cancelled || version !== dataVersion || comparison !== state.result) return false;
     textRequest = null;
     if (!res.ok) {
       showError(t('errTextDiffFailed') + res.error);
@@ -377,56 +293,7 @@ async function loadTextDiff() {
 }
 
 function renderTextDiff() {
-  const r = state.textResult;
-  textView.innerHTML = '';
-  const aLines = r.aText.split('\n');
-  const bLines = r.bText.split('\n');
-  const frag = document.createDocumentFragment();
-  let rows = 0;
-  let truncated = false;
-
-  const addRow = (cls, text) => {
-    if (rows >= TEXT_ROW_BUDGET) {
-      truncated = true;
-      return;
-    }
-    rows++;
-    const div = document.createElement('div');
-    div.className = 'tline ' + cls;
-    div.textContent = text;
-    frag.appendChild(div);
-  };
-
-  for (const op of r.ops) {
-    if (op.type === 'same') {
-      // 长相同段折叠展示
-      if (op.count > 8) {
-        for (let i = 0; i < 3; i++) addRow('same', '  ' + aLines[op.aStart + i]);
-        addRow('gap', t('textDiffGap', [String(op.count - 6)]));
-        for (let i = op.count - 3; i < op.count && !truncated; i++) addRow('same', '  ' + aLines[op.aStart + i]);
-      } else {
-        for (let i = 0; i < op.count && !truncated; i++) addRow('same', '  ' + aLines[op.aStart + i]);
-      }
-    } else if (op.type === 'del') {
-      for (let i = 0; i < op.count && !truncated; i++) addRow('del', '- ' + aLines[op.aStart + i]);
-    } else {
-      for (let i = 0; i < op.count && !truncated; i++) addRow('add', '+ ' + bLines[op.bStart + i]);
-    }
-    if (truncated) break;
-  }
-  if (r.blocky) {
-    const note = document.createElement('div');
-    note.className = 'tline gap';
-    note.textContent = t('textDiffBlockyNote');
-    frag.appendChild(note);
-  }
-  if (truncated) {
-    const note = document.createElement('div');
-    note.className = 'tline gap';
-    note.textContent = t('textDiffTruncatedNote', [TEXT_ROW_BUDGET.toLocaleString()]);
-    frag.appendChild(note);
-  }
-  textView.appendChild(frag);
+  textRenderer.setDiff(state.textResult);
 }
 
 /* ================= 视图切换 ================= */
@@ -439,7 +306,11 @@ async function setCompareView(view) {
   diffNavEl.style.visibility = view === 'struct' ? '' : 'hidden';
   if (!state.result) return;
   if (view === 'text') await loadTextDiff();
-  else if (state.treesDirty) refreshTrees();
+  else if (state.treesDirty && await ensureComparisonData() && state.view === 'struct') refreshTrees();
+  else if (state.view === 'struct') {
+    treeViews.left?.refresh();
+    treeViews.right?.refresh();
+  }
 }
 
 /* ================= 其他操作 ================= */
@@ -453,17 +324,12 @@ function doSwap() {
 function doClear() {
   dataVersion++;
   textRequest = null;
+  dataRequest = null;
+  void runTask('clear', {}, { discardQueued: true });
+  destroyTrees();
   state.leftText = '';
   state.rightText = '';
-  for (const side of ['left', 'right']) {
-    state.elemMap[side].clear();
-    state.diffMap[side].clear();
-    state.force[side].clear();
-    state.expanded[side].clear();
-    state.children[side].clear();
-  }
-  state.pairLR.clear();
-  state.pairRL.clear();
+  clearIndexes();
   inputLeft.value = '';
   inputRight.value = '';
   state.result = null;
@@ -477,7 +343,7 @@ function doClear() {
   resultEl.hidden = true;
   treeLeftEl.innerHTML = '';
   treeRightEl.innerHTML = '';
-  textView.innerHTML = '';
+  textRenderer.clear();
   hideError();
   setStatus('');
   updateDiffInfo();
@@ -507,13 +373,30 @@ function fillSample() {
 
 /* ================= 滚动同步 ================= */
 let scrollSyncing = false;
+let scrollSyncToken = 0;
+const copiedScroll = new WeakMap();
+const nextScrollFrame = globalThis.requestAnimationFrame || ((callback) => setTimeout(callback, 0));
+
+function suspendScrollSync() {
+  scrollSyncing = true;
+  const token = ++scrollSyncToken;
+  // 两帧包含两个视口的异步 scroll；旧导航回调不能提前解锁新导航。
+  nextScrollFrame(() => nextScrollFrame(() => {
+    if (token === scrollSyncToken) scrollSyncing = false;
+  }));
+}
+
 function syncScroll(from, to) {
   from.addEventListener('scroll', () => {
+    const copied = copiedScroll.get(from);
+    copiedScroll.delete(from);
     if (scrollSyncing) return;
-    scrollSyncing = true;
+    if (copied && copied.top === from.scrollTop && copied.left === from.scrollLeft) return;
+    if (to.scrollTop === from.scrollTop && to.scrollLeft === from.scrollLeft) return;
     to.scrollTop = from.scrollTop;
     to.scrollLeft = from.scrollLeft;
-    setTimeout(() => { scrollSyncing = false; }, 0);
+    // 忽略这次赋值产生的回传事件，不阻塞连续的用户滚动。
+    copiedScroll.set(to, { top: to.scrollTop, left: to.scrollLeft });
   });
 }
 syncScroll(treeLeftEl, treeRightEl);

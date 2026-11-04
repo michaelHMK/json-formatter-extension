@@ -131,3 +131,50 @@ test('identical references still report key fallback and duplicate-key differenc
   const duplicates = [{ id: 1 }, { id: 1 }];
   assert.equal(diffData(duplicates, duplicates, { keyField: 'id' }).total, 2);
 });
+
+test('structural diff handles 20,000 nested objects and restores sibling paths', () => {
+  const depth = 20_000;
+  const prefix = '{"branch":' + '{"x":'.repeat(depth);
+  const suffix = '}'.repeat(depth);
+  const left = JSON.parse(prefix + '0' + suffix + ',"sibling":0}');
+  const right = JSON.parse(prefix + '1' + suffix + ',"sibling":1}');
+  const result = diffData(left, right);
+  const deepPath = '/branch' + '/x'.repeat(depth);
+  assert.equal(result.total, 2);
+  assert.deepEqual(result.diffs.map(({ type, leftPath, rightPath }) => [type, leftPath, rightPath]), [
+    ['changed', deepPath, deepPath],
+    ['changed', '/sibling', '/sibling'],
+  ]);
+});
+
+test('structural diff handles deeply nested keyed arrays and exact ignored leaves', () => {
+  const depth = 5_000;
+  const prefix = '[{"id":0,"next":'.repeat(depth);
+  const suffix = '}]'.repeat(depth);
+  const left = JSON.parse(prefix + '{"value":1,"gone":true}' + suffix);
+  const right = JSON.parse(prefix + '{"value":2,"added":true}' + suffix);
+  const ignoredLeaf = '[0].next.'.repeat(depth) + 'value';
+  const result = diffData(left, right, { keyField: 'id', ignorePaths: [ignoredLeaf] });
+  const path = '/0/next'.repeat(depth);
+  assert.equal(result.total, 2);
+  assert.equal(result.keyFallback, false);
+  assert.deepEqual(result.pairs, []);
+  assert.deepEqual(result.diffs.map(({ type, leftPath, rightPath }) => [type, leftPath, rightPath]), [
+    ['removed', path + '/gone', null],
+    ['added', null, path + '/added'],
+  ]);
+});
+
+test('iterative structural diff keeps detail caps after returning from a deep branch', () => {
+  const depth = 3_000;
+  const prefix = '{"child":'.repeat(depth);
+  const suffix = '}'.repeat(depth);
+  const left = { deep: JSON.parse(prefix + '0' + suffix), wide: Array(5001).fill(0) };
+  const right = { deep: JSON.parse(prefix + '1' + suffix), wide: Array(5001).fill(1) };
+  const result = diffData(left, right);
+  assert.equal(result.total, 5002);
+  assert.equal(result.diffs.length, 5000);
+  assert.equal(result.truncated, true);
+  assert.equal(result.diffs[0].leftPath, '/deep' + '/child'.repeat(depth));
+  assert.equal(result.diffs[4999].leftPath, '/wide/4998');
+});

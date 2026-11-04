@@ -56,10 +56,14 @@ try {
     if (verify) {
       assert.equal(result.highlights, 1);
       assert.match(result.current, /needle/);
-      assert.ok(result.entries <= 202);
-      await page.locator('#tree .more').first().click();
-      assert.equal(await page.locator('#tree .entry').count(), 402);
-      assert.equal(await page.locator('#tree .highlight').count(), 1);
+      assert.ok(result.entries < 100);
+      await page.locator('#tree').evaluate((element) => { element.scrollTop = 0; });
+      await settled();
+      assert.equal(await page.locator('#tree .entry[data-path="/0"]').count(), 1);
+      assert.ok(await page.locator('#tree .entry').count() < 100);
+      await page.locator('#match-next').click();
+      await settled();
+      assert.equal(await page.locator('#tree .highlight.current').count(), 1);
     }
     await page.locator('#btn-clear').click();
     assert.equal(await page.locator('#tree .entry').count(), 0);
@@ -81,9 +85,9 @@ try {
   rows.push({ scenario: 'compare-20000-one-change', ...result });
   if (verify) {
     assert.equal(result.current, 2);
-    assert.equal(result.entries, 404);
+    assert.ok(result.entries < 200);
     await page.locator('#only-diff').check();
-    assert.equal(await page.locator('#struct-view .entry').count(), 4);
+    assert.equal(await page.locator('#struct-view .entry:not(.virtual-close)').count(), 4);
     await page.locator('#view-text').click();
     await page.waitForFunction(() => document.querySelectorAll('.tline').length > 0);
     assert.equal(await page.locator('.tline.del').count(), 1);

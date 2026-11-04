@@ -7,8 +7,12 @@ function loadCompare(runTask) {
   const handler = createTaskHandler();
   return loadPage('compare', {
     runTask: runTask || (async (action, payload) => handler({ action, ...payload })),
-    expose: '{ state, doCompare, doClear, setCompareView }',
+    expose: '{ state, doCompare, doClear, setCompareView, goToDiff, treeViews }',
   });
+}
+
+function visiblePaths(page, side = 'left') {
+  return page.get('tree-' + side).querySelectorAll('.entry').map((entry) => entry.dataset.path);
 }
 
 function setInputs(page, left = '{"before":1}', right = '{"after":2}') {
@@ -17,7 +21,7 @@ function setInputs(page, left = '{"before":1}', right = '{"after":2}') {
 }
 
 function assertCleared(page) {
-  for (const name of ['elemMap', 'diffMap', 'force', 'expanded', 'children']) {
+  for (const name of ['diffMap', 'force', 'expanded', 'collapsed', 'children']) {
     assert.equal(page.state[name].left.size, 0, name + '.left');
     assert.equal(page.state[name].right.size, 0, name + '.right');
   }
@@ -40,7 +44,7 @@ test('clear removes comparison DOM, data and every retained path/pair index', as
   page.get('key-field').value = 'id';
   setInputs(page, '[{"id":1,"value":1},{"id":2,"value":2}]', '[{"id":2,"value":3},{"id":1,"value":4}]');
   await page.doCompare();
-  assert.ok(page.state.elemMap.left.size > 0);
+  assert.ok(page.get('tree-left').querySelectorAll('.entry').length > 0);
   assert.ok(page.state.diffMap.left.size > 0);
   assert.ok(page.state.pairLR.size > 0);
   await page.setCompareView('text');
@@ -51,7 +55,8 @@ test('clear removes comparison DOM, data and every retained path/pair index', as
 test('clear discards an outstanding structural comparison response', async () => {
   let finish;
   const handler = createTaskHandler();
-  const page = loadCompare((action, payload) => new Promise((resolve) => {
+  const page = loadCompare((action, payload) => action === 'clear'
+    ? Promise.resolve(handler({ action, ...payload })) : new Promise((resolve) => {
     finish = () => resolve(handler({ action, ...payload }));
   }));
   setInputs(page);
@@ -76,10 +81,42 @@ test('text diff uses the completed comparison snapshot even after input edits', 
   setInputs(page, '{"unsaved":10}', '{"unsaved":20}');
   await page.setCompareView('text');
   const request = requests.find((request) => request.action === 'textDiff');
-  assert.equal(request.text, left);
-  assert.equal(request.text2, right);
+  assert.equal(request.snapshotId, page.state.result.snapshotId);
+  assert.equal(request.text, undefined, 'snapshot requests do not resend input');
+  assert.equal(request.text2, undefined);
   assert.equal(JSON.parse(page.state.textResult.aText).old, 1);
   assert.equal(JSON.parse(page.state.textResult.bText).old, 2);
+});
+
+test('text-only comparisons defer object transfer and all tree indexes until structure is opened', async () => {
+  const handler = createTaskHandler();
+  const requests = [];
+  const page = loadCompare(async (action, payload) => {
+    requests.push({ action, ...payload });
+    return handler({ action, ...payload });
+  });
+  await page.setCompareView('text');
+  page.get('array-mode').value = 'key';
+  page.get('key-field').value = 'id';
+  setInputs(page, '[{"id":1,"value":1},{"id":2,"value":2}]', '[{"id":2,"value":3},{"id":1,"value":4}]');
+  await page.doCompare();
+  assert.ok(page.state.textResult);
+  assert.equal(page.state.leftData, undefined);
+  assert.equal(page.state.indexesReady, false);
+  assert.equal(page.state.pairLR.size, 0);
+  assert.equal(page.state.diffMap.left.size, 0);
+  assert.equal(page.state.force.left.size, 0);
+  assert.equal(page.state.children.left.size, 0);
+  assert.equal(requests.find((request) => request.action === 'diff').includeData, false);
+  assert.ok(!requests.some((request) => request.action === 'comparisonData'));
+  await page.setCompareView('struct');
+  assert.equal(page.state.indexesReady, true);
+  assert.equal(page.state.pairLR.size, 2);
+  assert.ok(page.state.diffMap.left.size > 0);
+  assert.equal(requests.filter((request) => request.action === 'comparisonData').length, 1);
+  await page.setCompareView('text');
+  await page.setCompareView('struct');
+  assert.equal(requests.filter((request) => request.action === 'comparisonData').length, 1);
 });
 
 test('clear discards an outstanding text diff response', async () => {
@@ -104,10 +141,10 @@ test('a comparison made in text view builds its own structure when switching bac
   await page.setCompareView('text');
   setInputs(page, '{"fresh":3}', '{"fresh":4}');
   await page.doCompare();
-  assert.equal(page.state.elemMap.left.size, 0, 'hidden old DOM must release references');
+  assert.equal(page.get('tree-left').children.length, 0, 'hidden old DOM must release references');
   await page.setCompareView('struct');
-  assert.ok(page.state.elemMap.left.has('/fresh'));
-  assert.ok(!page.state.elemMap.left.has('/before'));
+  assert.ok(visiblePaths(page).includes('/fresh'));
+  assert.ok(!visiblePaths(page).includes('/before'));
   assert.equal(page.get('tree-left').querySelector('.v').textContent, '3');
 });
 
@@ -115,13 +152,13 @@ test('only-differences changes made in text view apply when switching to structu
   const page = loadCompare();
   setInputs(page, '{"stable":1,"changed":2}', '{"stable":1,"changed":3}');
   await page.doCompare();
-  assert.ok(page.state.elemMap.left.has('/stable'));
+  assert.ok(visiblePaths(page).includes('/stable'));
   await page.setCompareView('text');
   page.get('only-diff').checked = true;
   page.get('only-diff').events.change();
   await page.setCompareView('struct');
-  assert.ok(!page.state.elemMap.left.has('/stable'));
-  assert.ok(page.state.elemMap.left.has('/changed'));
+  assert.ok(!visiblePaths(page).includes('/stable'));
+  assert.ok(visiblePaths(page).includes('/changed'));
 });
 
 test('transform clear releases cache and rejects stale successful or failed results', async () => {
@@ -176,4 +213,35 @@ test('a text request for the old snapshot cannot populate the next comparison ca
   await page.setCompareView('text');
   assert.equal(JSON.parse(page.state.textResult.aText).snapshot, 'B');
   assert.equal(JSON.parse(page.state.textResult.bText).snapshot, 'B2');
+});
+
+
+test('dense differences remain navigable on both sides with a bounded DOM', async () => {
+  const page = loadCompare();
+  const left = Array.from({ length: 5000 }, (_, id) => ({ id, changed: 1, stable: 0 }));
+  const right = left.map((row) => ({ ...row, changed: 2 }));
+  setInputs(page, JSON.stringify(left), JSON.stringify(right));
+  await page.doCompare();
+  page.goToDiff(4999);
+  for (const side of ['left', 'right']) {
+    assert.equal(page.get('tree-' + side).querySelector('.entry.current').dataset.path, '/4999/changed');
+    assert.ok(page.get('tree-' + side).querySelectorAll('.entry').length <= 45);
+    assert.ok(page.treeViews[side].rowCount > 25000);
+  }
+});
+
+test('nested container toggles follow keyed-array pairing on the opposite side', async () => {
+  const page = loadCompare();
+  page.get('array-mode').value = 'key';
+  page.get('key-field').value = 'id';
+  setInputs(page,
+    '[{"id":1,"nested":{"value":1}},{"id":2,"nested":{"value":2}}]',
+    '[{"id":2,"nested":{"value":3}},{"id":1,"nested":{"value":4}}]');
+  await page.doCompare();
+  const entry = page.get('tree-left').querySelectorAll('.entry').find((item) =>
+    item.dataset.path === '/0/nested' && !item.classList.contains('virtual-close'));
+  entry.querySelector('.toggle').click();
+  assert.equal(page.state.collapsed.left.has('/0/nested'), true);
+  assert.equal(page.state.collapsed.right.has('/1/nested'), true);
+  assert.ok(!visiblePaths(page, 'right').includes('/1/nested/value'));
 });

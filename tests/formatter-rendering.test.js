@@ -2,62 +2,61 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadPage } from './helpers/page-dom.js';
 
-// Hidden data getters detect accidental whole-document walks without timing tests.
+// Exercise page behavior through the virtual viewport and navigation actions.
 function loadFormatter(runTask) {
   return loadPage('formatter', {
     runTask,
-    expose: '{ state, renderTree, applyLevel, doClear, doFormat, ensureTreeData, runSearch, createChildPathIndex }',
+    expose: '{ state, renderTree, applyLevel, doClear, doFormat, ensureTreeData, runSearch, getTree: () => treeView }',
   });
 }
 
-function rootChildren(page) {
-  return page.get('tree').children[0].children[0].children[1];
+function findEntry(page, path) {
+  return page.get('tree').querySelectorAll('.entry').find((entry) =>
+    entry.dataset.path === path && !entry.classList.contains('virtual-close'));
 }
 
-function entryChildren(entry) {
-  return entry.children.find((child) => child.className === 'children');
-}
-
-test('expand all only visits the current page, and later pages inherit the depth', () => {
+test('expand all indexes all levels while keeping only viewport rows in the DOM', () => {
   const page = loadFormatter();
-  const data = Array.from({ length: 201 }, (_, id) => ({ id, profile: { name: 'user' } }));
-  let allowLast = false;
-  Object.defineProperty(data, 200, {
-    get() {
-      assert.ok(allowLast, 'the hidden page must not be traversed during expand all');
-      return { id: 200, profile: { name: 'last' } };
-    },
-  });
-  page.state.data = data;
+  page.state.data = Array.from({ length: 201 }, (_, id) => ({ id, profile: { name: 'user' } }));
   page.applyLevel('all');
   assert.equal(page.state.expanded.size, 0);
-  const children = rootChildren(page);
-  assert.equal(children.children.length, 201); // 200 entries and the next-page button
-  assert.equal(entryChildren(children.children[0]).style.display, '');
-  assert.equal(entryChildren(entryChildren(children.children[0]).children[1]).style.display, '');
+  assert.ok(page.getTree().rowCount > 1000);
+  assert.ok(page.get('tree').querySelectorAll('.entry').length <= 45);
+  assert.equal(findEntry(page, '/0/profile').querySelector('.toggle').textContent, '▾');
+  assert.equal(page.getTree().reveal('/200/profile/name'), true);
+  assert.equal(findEntry(page, '/200/profile/name').querySelector('.v').textContent, '"user"');
+  assert.ok(page.get('tree').querySelectorAll('.entry').length <= 45);
+});
+
+test('default view does not visit hidden array values', () => {
+  const page = loadFormatter();
+  const data = Array(1_000_000).fill(1);
+  let allowLast = false;
+  Object.defineProperty(data, 999999, { get() { assert.ok(allowLast); return 7; } });
+  page.state.data = data;
+  page.renderTree();
+  assert.equal(page.getTree().rowCount, 1_000_002);
   allowLast = true;
-  children.children.at(-1).click();
-  assert.equal(children.children.length, 201);
-  assert.equal(entryChildren(children.children.at(-1)).style.display, '');
+  page.getTree().reveal('/999999');
+  assert.equal(findEntry(page, '/999999').querySelector('.v').textContent, '7');
 });
 
 test('manual collapse overrides expand all across rerenders and a new level resets it', () => {
   const page = loadFormatter();
   page.state.data = { first: { nested: { value: 1 } } };
   page.applyLevel('all');
-  let entry = rootChildren(page).children[0];
-  entry.children[0].children[0].click();
-  assert.equal(entryChildren(entry).style.display, 'none');
+  findEntry(page, '/first').querySelector('.toggle').click();
+  assert.equal(findEntry(page, '/first/nested'), undefined);
   page.renderTree();
-  entry = rootChildren(page).children[0];
-  assert.equal(entryChildren(entry).style.display, 'none');
+  assert.equal(findEntry(page, '/first/nested'), undefined);
+  assert.equal(findEntry(page, '/first').querySelector('.toggle').textContent, '▸');
   page.applyLevel('2');
-  entry = rootChildren(page).children[0];
-  assert.equal(entryChildren(entry).style.display, '');
-  assert.equal(entryChildren(entryChildren(entry).children[0]).style.display, 'none');
+  assert.equal(findEntry(page, '/first').querySelector('.toggle').textContent, '▾');
+  assert.equal(findEntry(page, '/first/nested').querySelector('.toggle').textContent, '▸');
   page.doClear();
   assert.equal(page.state.expandLevel, 1);
   assert.equal(page.state.collapsed.size, 0);
+  assert.equal(page.getTree(), null);
 });
 
 test('search exposes a distant match without rendering every earlier sibling', () => {
@@ -65,28 +64,30 @@ test('search exposes a distant match without rendering every earlier sibling', (
   page.state.data = Array.from({ length: 25001 }, (_, id) => id);
   page.state.highlights = new Set(['/25000']);
   page.state.searchForce = new Set(['']);
-  page.state.searchChildren = page.createChildPathIndex(page.state.highlights);
   page.state.searchQuery = '25000';
   page.state.matchCount = 1;
   page.renderTree();
-  const children = rootChildren(page);
-  assert.equal(children.querySelectorAll('.entry').length, 201);
-  assert.equal(children.querySelectorAll('.entry.highlight').length, 1);
-  assert.equal(children.children.at(-1).classList.contains('current'), true);
+  assert.ok(page.get('tree').querySelectorAll('.entry').length <= 45);
+  assert.equal(page.get('tree').querySelector('.entry.current').dataset.path, '/25000');
   assert.equal(page.state.matchIndex, 0);
 });
 
-test('paging around distant search hits preserves source order and emits every child once', () => {
+test('search navigation reaches offscreen matches and retains source order around them', () => {
   const page = loadFormatter();
   page.state.data = Array.from({ length: 601 }, (_, id) => id);
   page.state.highlights = new Set(['/400', '/500']);
   page.state.searchForce = new Set(['']);
-  page.state.searchChildren = page.createChildPathIndex(page.state.highlights);
+  page.state.searchQuery = 'match';
+  page.state.matchCount = 2;
   page.renderTree();
-  const children = rootChildren(page);
-  while (children.querySelector('.more')) children.querySelector('.more').click();
-  const keys = children.children.map((entry) => Number(entry.querySelector('.key').textContent));
-  assert.deepEqual(keys, Array.from({ length: 601 }, (_, id) => id));
+  assert.equal(page.get('tree').querySelector('.entry.current').dataset.path, '/400');
+  page.get('match-next').click();
+  assert.equal(page.get('tree').querySelector('.entry.current').dataset.path, '/500');
+  const keys = page.get('tree').querySelectorAll('.key').map((entry) => Number(entry.textContent));
+  assert.equal(new Set(keys).size, keys.length);
+  assert.deepEqual(keys, [...keys].sort((a, b) => a - b));
+  page.get('match-prev').click();
+  assert.equal(page.get('tree').querySelector('.entry.current').dataset.path, '/400');
 });
 
 test('clear releases the Worker cache and ignores an outstanding format response', async () => {

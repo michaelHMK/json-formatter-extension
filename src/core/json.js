@@ -207,8 +207,13 @@ function scanNumberLiterals(text, numberLiterals, restore) {
  */
 export function parseJsonPreservingNumberLiterals(text) {
   const data = JSON.parse(text);
-  const numberLiterals = scanNumberLiterals(text, Object.create(null), false);
+  const numberLiterals = collectNumberLiterals(text);
   return { data, numberLiterals };
+}
+
+// 仅用于已经通过 JSON.parse 的原文；供 Worker 缓存补充树视图的数字显示。
+export function collectNumberLiterals(text) {
+  return scanNumberLiterals(text, Object.create(null), false);
 }
 
 function restoreNumberLiterals(text, numberLiterals) {
@@ -364,13 +369,14 @@ function formatJsonTextDirect(text, indentUnit) {
  * indent=null 表示压缩；仅树形显示需要额外返回数字字面量表。
  * data 始终返回，调用方可缓存它而不必再次解析；无效输入抛出 SyntaxError。
  */
-export function formatJson(text, { indent = '2', includeNumberLiterals = false } = {}) {
-  const data = JSON.parse(text);
+export function formatJson(text, { indent = '2', includeNumberLiterals = false, parsed = null } = {}) {
+  // parsed 只由持有同一原文解析结果的 Worker 会话传入，避免切换视图重复解析。
+  const data = parsed ? parsed.data : JSON.parse(text);
   const indentUnit = indent === null ? null : normalizeJsonIndent(indent);
   let output = formatJsonTextDirect(text, indentUnit);
-  let numberLiterals = null;
-  if (output === null || includeNumberLiterals) {
-    numberLiterals = scanNumberLiterals(text, Object.create(null), false);
+  let numberLiterals = parsed?.numberLiterals ?? null;
+  if ((output === null || includeNumberLiterals) && numberLiterals === null) {
+    numberLiterals = collectNumberLiterals(text);
   }
   if (output === null) {
     output = indentUnit === null
