@@ -77,7 +77,7 @@ function doClear() {
 
 function fillSample() {
   const sample = JSON.stringify({
-    name: 'JSON 工具箱',
+    name: 'JSON Toolbox',
     free: true,
     tags: ['local', 'fast'],
     nested: { id: 1, value: null },

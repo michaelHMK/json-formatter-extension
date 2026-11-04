@@ -1,10 +1,10 @@
-# JSON 格式化与对比工具
+# JSON Toolbox
 
 [English](README.md) | 简体中文
 
 **为大 JSON 优化，所有处理都在本地完成。**
 
-一个以性能和隐私为核心的 Chrome 扩展（Manifest V3），提供 JSON 格式化、压缩、转义与对比。零权限、零上传、零追踪，无广告、无运行时第三方依赖，安装后即可离线使用。
+JSON Toolbox 是一个以性能和隐私为核心的 Chrome 扩展（Manifest V3），提供 JSON 格式化、压缩、转义与对比。零权限、零上传、零追踪，无广告、无运行时第三方依赖，安装后即可离线使用。
 
 当前版本见 [`manifest.json`](manifest.json) 中的 `version` 字段。
 
@@ -22,7 +22,7 @@
 - **零额外扩展权限**：不申请网站访问或存储权限，不读取网页内容、浏览历史、Cookie 或账号信息，见 [`manifest.json`](manifest.json)。
 - **不保存输入记录**：输入与结果仅在工具页及本地 Worker 的内存中处理，不主动写入浏览器存储、文件或云端；只在你执行复制时写入系统剪贴板。
 
-完整的数据处理说明见[隐私政策](PRIVACY.md)；商店使用[公开托管版本](https://github.com/michaelHMK/json-formatter-extension/blob/main/PRIVACY.md)。
+完整的数据处理说明见[隐私政策](PRIVACY.md)；商店使用[公开托管版本](https://github.com/michaelHMK/json-toolbox/blob/main/PRIVACY.md)。
 
 ## 功能
 
@@ -41,7 +41,7 @@
 2. 开启右上角 **开发者模式**
 3. 点击 **加载已解压的扩展程序**
 4. 选择本仓库**根目录**（包含 `manifest.json` 的目录，不要选 `dist/` 里的 zip）
-5. 点击工具栏中的扩展图标，即可打开 JSON 工具箱
+5. 点击工具栏中的扩展图标，即可打开 JSON Toolbox
 
 快捷键：多数页面支持 **Cmd/Ctrl + Enter** 执行当前操作。
 
@@ -71,7 +71,7 @@ gen_icons.py           # 重新生成 icons/ 下 PNG（可选）
 build_release.py       # 发布检查与白名单打包（Python 标准库）
 STORE_LISTING.md       # Chrome 商店上架文案与表单说明
 PRIVACY.md             # 中英文隐私政策（由当前公开仓库托管）
-store-assets/          # 商店截图和宣传图（不打进扩展 ZIP）
+store-assets/          # 商店截图、宣传图与生成脚本（不打进扩展 ZIP）
 ```
 
 运行时代码使用浏览器原生 ES modules，无需安装依赖或构建即可加载扩展。每个 HTML 只加载一个页面入口，导航生成后统一应用翻译，不依赖全局函数和多个 script 标签的先后顺序。
@@ -136,7 +136,7 @@ python3 build_release.py --check
 python3 build_release.py
 ```
 
-脚本检查版本号、两种语言的名称和简介长度、翻译键、图标尺寸、HTML 资源引用，以及 JavaScript 静态导入和 Worker 入口的相对路径，再按白名单打包运行时文件。输出为 `dist/json-formatter-extension-<version>.zip` 和对应的 `.zip.sha256` 校验文件。`manifest.json` 位于 ZIP 根目录；测试、文档、截图、开发配置和 `.git` 不会被收录。`dist/` 已加入 Git 忽略规则。
+脚本检查版本号、两种语言的名称和简介长度、翻译键、图标尺寸、HTML 资源引用，以及 JavaScript 静态导入和 Worker 入口的相对路径，再按白名单打包运行时文件。输出为 `dist/json-toolbox-<version>.zip` 和对应的 `.zip.sha256` 校验文件。`manifest.json` 位于 ZIP 根目录；测试、文档、截图、开发配置和 `.git` 不会被收录。`dist/` 已加入 Git 忽略规则。
 
 上传前将 ZIP 解压到一个新目录，在 `chrome://extensions/` 中加载该目录并完成下面的检查。以后发布更新时先提高 `manifest.json` 的版本号，再重新打包。
 
@@ -144,7 +144,7 @@ python3 build_release.py
 
 1. 在 [Chrome Web Store 开发者控制台](https://chrome.google.com/webstore/devconsole/)注册账号，阅读并接受协议，支付页面显示的一次性注册费。参见[注册说明](https://developer.chrome.com/docs/webstore/register)。
 2. 填写发布者名称并验证联系邮箱，按控制台提示完成账号信息。为 Google 账号启用两步验证；这是发布前的[官方要求](https://developer.chrome.com/docs/webstore/program-policies/two-step-verification)。
-3. 隐私政策由当前公开仓库托管：填写 [公开隐私政策网址](https://github.com/michaelHMK/json-formatter-extension/blob/main/PRIVACY.md)。修改本地 [PRIVACY.md](PRIVACY.md) 后，提交并推送到 `main` 分支即可更新公开版本；上传商店前用未登录窗口确认链接可访问。
+3. 隐私政策由当前公开仓库托管：填写 [公开隐私政策网址](https://github.com/michaelHMK/json-toolbox/blob/main/PRIVACY.md)。修改本地 [PRIVACY.md](PRIVACY.md) 后，通过 PR 合并到 `main` 分支即可更新公开版本；上传商店前用未登录窗口确认链接可访问。
 4. 新建商店条目，上传 `dist/` 下的扩展 ZIP，按 [STORE_LISTING.md](STORE_LISTING.md) 填写中英文描述、隐私表单和测试说明，并上传 `store-assets/` 下对应语言的图片。
 5. 选择分发地区和公开可见性，检查预览后提交审核。可选择审核通过后自动发布或自行发布，参见[官方发布流程](https://developer.chrome.com/docs/webstore/publish)。
 

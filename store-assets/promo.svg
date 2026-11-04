@@ -23,6 +23,7 @@
     <rect x="126" y="62" width="92" height="22" rx="5" fill="#d5f5e6"/>
     <path d="M136 73h10m-5-5v10m15-5h46" stroke="#23966b" stroke-width="4" stroke-linecap="round"/>
   </g>
-  <text x="29" y="208" fill="#fff" font-family="Arial, sans-serif" font-size="29" font-weight="700">JSON Formatter</text>
-  <text x="29" y="242" fill="#dddfff" font-family="Arial, sans-serif" font-size="26">&amp; Compare</text>
+  <text x="29" y="208" fill="#fff" font-family="Arial, sans-serif" font-size="32" font-weight="700">JSON Toolbox</text>
+  <text x="29" y="239" fill="#dddfff" font-family="Arial, sans-serif" font-size="18">Format · Search · Compare</text>
+  <text x="29" y="264" fill="#d1d8fb" font-family="Arial, sans-serif" font-size="14">Fast. Private. Fully local.</text>
 </svg>

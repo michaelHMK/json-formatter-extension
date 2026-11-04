@@ -49,7 +49,7 @@ export function renderNavigation() {
   document.getElementById('sidebar').innerHTML = `
     <a class="brand" href="formatter.html">
       <span class="brand-mark">{ }</span>
-      <span class="brand-name" data-i18n="appName">JSON 工具箱</span>
+      <span class="brand-name" data-i18n="appName">JSON Toolbox</span>
     </a>
     <div class="nav-heading" data-i18n="navTools">工具</div>
     <nav class="main-nav" aria-label="JSON">${links}</nav>

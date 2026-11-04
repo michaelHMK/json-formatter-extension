@@ -1,10 +1,10 @@
-# JSON Formatter and Compare
+# JSON Toolbox
 
 English | [简体中文](README.zh-CN.md)
 
 **Built for large JSON. All processing stays local.**
 
-A Chrome extension (Manifest V3) built around performance and privacy, with tools to format, minify, escape, and compare JSON. Zero permissions, uploads, or tracking. No ads or third-party runtime dependencies. Works offline after installation.
+JSON Toolbox is a Chrome extension (Manifest V3) built around performance and privacy, with tools to format, minify, escape, and compare JSON. Zero permissions, uploads, or tracking. No ads or third-party runtime dependencies. Works offline after installation.
 
 See the `version` field in [`manifest.json`](manifest.json) for the current version.
 
@@ -22,7 +22,7 @@ See [Performance Checks](#performance-checks) below for verification commands an
 - **No extra extension permissions**: no website access or storage permissions, and no reading of website content, browsing history, cookies, or account information. See [`manifest.json`](manifest.json).
 - **No saved input history**: inputs and results are processed only in the memory of the tool page and its local Worker. The extension does not write them to browser storage, files, or cloud services; it writes to the system clipboard only when you copy.
 
-See the [privacy policy](PRIVACY.md) for full data-handling details. Use the [publicly hosted version](https://github.com/michaelHMK/json-formatter-extension/blob/main/PRIVACY.md) for the store listing.
+See the [privacy policy](PRIVACY.md) for full data-handling details. Use the [publicly hosted version](https://github.com/michaelHMK/json-toolbox/blob/main/PRIVACY.md) for the store listing.
 
 ## Features
 
@@ -41,7 +41,7 @@ Use the sidebar to switch between tools. The interface supports English and Simp
 2. Enable **Developer mode** in the upper-right corner.
 3. Click **Load unpacked**.
 4. Select the **repository root** containing `manifest.json`, rather than a ZIP file in `dist/`.
-5. Click the extension icon in the toolbar to open the JSON toolbox.
+5. Click the extension icon in the toolbar to open JSON Toolbox.
 
 Keyboard shortcut: most pages support **Cmd/Ctrl + Enter** to run the current operation.
 
@@ -71,7 +71,7 @@ gen_icons.py           # Regenerate PNG files in icons/ (optional)
 build_release.py       # Release validation and allowlist packaging using Python's standard library
 STORE_LISTING.md       # Chrome Web Store listing copy and submission guidance
 PRIVACY.md             # English and Chinese privacy policy hosted in the public repository
-store-assets/          # Store screenshots and promotional images, excluded from the extension ZIP
+store-assets/          # Store screenshots, promotional images, and generation script; excluded from the extension ZIP
 ```
 
 Runtime code uses native browser ES modules. No dependency installation or build step is needed to load the extension. Each HTML page loads a single entry module; navigation is rendered before translations are applied, without relying on global functions or the ordering of multiple script tags.
@@ -138,7 +138,7 @@ python3 build_release.py --check
 python3 build_release.py
 ```
 
-The script validates the version, name and description lengths in both languages, translation keys, icon dimensions, HTML resource references, and relative paths for JavaScript static imports and the Worker entry point. It then packages runtime files from an explicit allowlist. Output is written to `dist/json-formatter-extension-<version>.zip` with a matching `.zip.sha256` checksum file. The ZIP contains `manifest.json` at its root and excludes tests, documentation, screenshots, development configuration, and `.git`. The `dist/` directory is ignored by Git.
+The script validates the version, name and description lengths in both languages, translation keys, icon dimensions, HTML resource references, and relative paths for JavaScript static imports and the Worker entry point. It then packages runtime files from an explicit allowlist. Output is written to `dist/json-toolbox-<version>.zip` with a matching `.zip.sha256` checksum file. The ZIP contains `manifest.json` at its root and excludes tests, documentation, screenshots, development configuration, and `.git`. The `dist/` directory is ignored by Git.
 
 Before uploading, extract the ZIP to a new directory, load that directory through `chrome://extensions/`, and complete the checks below. For subsequent releases, increase the version in `manifest.json` before rebuilding.
 
@@ -146,7 +146,7 @@ Before uploading, extract the ZIP to a new directory, load that directory throug
 
 1. Register an account in the [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole/), read and accept the agreement, and pay the one-time registration fee shown there. See the [registration instructions](https://developer.chrome.com/docs/webstore/register).
 2. Set your publisher name, verify your contact email, and complete the account details requested by the dashboard. Enable two-step verification on your Google account, as required by the [publishing policy](https://developer.chrome.com/docs/webstore/program-policies/two-step-verification).
-3. Use the [public privacy policy URL](https://github.com/michaelHMK/json-formatter-extension/blob/main/PRIVACY.md), hosted in this repository. To update the public policy, edit [PRIVACY.md](PRIVACY.md), then commit and push to `main`. Confirm that the link is accessible in a signed-out browser window before submitting.
+3. Use the [public privacy policy URL](https://github.com/michaelHMK/json-toolbox/blob/main/PRIVACY.md), hosted in this repository. To update the public policy, edit [PRIVACY.md](PRIVACY.md) and merge the change into `main` through a pull request. Confirm that the link is accessible in a signed-out browser window before submitting.
 4. Create a store listing and upload the extension ZIP from `dist/`. Follow [STORE_LISTING.md](STORE_LISTING.md) for English and Chinese descriptions, privacy declarations, and testing instructions. Upload the images for each language from `store-assets/`.
 5. Choose distribution regions and public visibility, review the preview, and submit for review. You can publish automatically after approval or publish manually; see the [official publishing process](https://developer.chrome.com/docs/webstore/publish).
 
