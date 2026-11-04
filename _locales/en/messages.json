@@ -273,27 +273,8 @@
       }
     }
   },
-  "showMore": {
-    "message": "Show more ($shown$ / $total$ shown)",
-    "placeholders": {
-      "shown": {
-        "content": "$1"
-      },
-      "total": {
-        "content": "$2"
-      }
-    }
-  },
   "strTruncated": {
     "message": " … ($count$ chars total, truncated)",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
-  },
-  "renderLimitedTree": {
-    "message": "Structure too large — expanded ~$count$ nodes; expand deeper levels manually",
     "placeholders": {
       "count": {
         "content": "$1"
@@ -435,22 +416,11 @@
   "diffKeyFallback": {
     "message": "; some array items lack the key field — compared by index"
   },
-  "diffRenderLimited": {
-    "message": "; structure too large, partially expanded"
-  },
   "diffIdenticalNote": {
     "message": " — contents are identical"
   },
   "textDiffBlockyNote": {
     "message": "Diff region too large — shown as whole blocks (structural view is unaffected)"
-  },
-  "textDiffTruncatedNote": {
-    "message": "Content too large — only the first $count$ lines shown",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
   },
   "textDiffGap": {
     "message": "  ⋯ $count$ identical lines ⋯",

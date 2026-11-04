@@ -3,19 +3,23 @@ import { t } from '../shared/i18n.js';
 import { createTaskRunner } from '../shared/worker-client.js';
 import { createFeedback } from '../shared/feedback.js';
 import { copyText } from '../shared/clipboard.js';
+import { createVirtualTextView } from '../shared/virtual-text.js';
 
 initializePage();
 
 const inputEl = document.getElementById('input');
 const outputEl = document.getElementById('output-text');
+const outputView = createVirtualTextView(outputEl);
 const statusEl = document.getElementById('status');
 const busyEl = document.getElementById('busy');
 const errorEl = document.getElementById('error');
 const action = document.body.dataset.action;
 
 let outputText = '';
+let dataVersion = 0;
 
 const runTask = createTaskRunner({
+  serialize: true,
   onBusyChange: (busy) => { busyEl.hidden = !busy; },
 });
 
@@ -30,7 +34,10 @@ async function runTransform() {
     return;
   }
   hideError();
-  const res = await runTask(action, { text });
+  const version = ++dataVersion;
+  const res = await runTask(action, { text, retainSearch: false }, { key: 'transform' });
+  if (res.cancelled) return;
+  if (version !== dataVersion) return;
   if (!res.ok) {
     if (action === 'minify') showParseError(text, res);
     else if (action === 'unescape') showError(t('errUnescapeFailed') + res.error);
@@ -38,7 +45,7 @@ async function runTransform() {
     return;
   }
   outputText = res.result.text;
-  outputEl.textContent = outputText;
+  outputView.setText(outputText);
   if (action === 'minify') {
     setStatus(t('statusMinified', [outputText.length.toLocaleString(), String(res.duration)]));
   } else {
@@ -58,9 +65,11 @@ async function doCopy() {
 }
 
 function doClear() {
+  dataVersion++;
+  runTask('clear', {}, { discardQueued: true });
   inputEl.value = '';
   outputText = '';
-  outputEl.textContent = '';
+  outputView.clear();
   hideError();
   setStatus('');
   inputEl.focus();

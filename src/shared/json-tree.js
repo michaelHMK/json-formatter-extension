@@ -1,7 +1,3 @@
-import { t } from './i18n.js';
-
-const STRING_PREVIEW = 2000;
-
 export function span(className, text) {
   const element = document.createElement('span');
   element.className = className;
@@ -9,18 +5,18 @@ export function span(className, text) {
   return element;
 }
 
-export function primitiveNode(value, path, numberLiterals) {
-  if (value === null) return span('v null', 'null');
-  if (typeof value === 'string') {
-    let text = JSON.stringify(value);
-    if (text.length > STRING_PREVIEW) {
-      text = text.slice(0, STRING_PREVIEW) + t('strTruncated', [text.length.toLocaleString()]);
+// 只为命中路径建立祖先索引，宽容器无需为找到一个远端命中渲染全部兄弟。
+export function createChildPathIndex(paths) {
+  const index = new Map();
+  for (let path of paths) {
+    while (path !== '') {
+      const parent = path.slice(0, path.lastIndexOf('/'));
+      let children = index.get(parent);
+      if (!children) index.set(parent, children = new Set());
+      if (children.has(path)) break;
+      children.add(path);
+      path = parent;
     }
-    return span('v string', text);
   }
-  if (typeof value === 'number') {
-    const literal = numberLiterals && numberLiterals[path];
-    return span('v number', literal !== undefined ? literal : String(value));
-  }
-  return span('v bool', String(value));
+  return index;
 }

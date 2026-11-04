@@ -13,16 +13,17 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parent
 RUNTIME_FILES = (
-    'manifest.json', 'src/background.js', 'styles/app.css',
+    'manifest.json', 'src/background.js', 'styles/app.css', 'styles/virtual-tree.css',
     'formatter.html', 'compare.html', 'minify.html', 'escape.html', 'unescape.html',
     'src/pages/formatter.js', 'src/pages/compare.js', 'src/pages/transform.js',
     'src/shared/page.js', 'src/shared/navigation.js', 'src/shared/i18n.js',
-    'src/shared/worker-client.js', 'src/shared/feedback.js',
+    'src/shared/worker-client.js', 'src/shared/worker-protocol.js', 'src/shared/feedback.js',
     'src/shared/clipboard.js', 'src/shared/json-tree.js',
+    'src/shared/virtual-tree.js', 'src/shared/virtual-text.js',
     'src/worker/index.js', 'src/worker/tasks.js',
     'src/core/json.js', 'src/core/json-path.js', 'src/core/parse-error.js',
     'src/core/escape.js', 'src/core/search.js',
-    'src/core/structural-diff.js', 'src/core/text-diff.js',
+    'src/core/structural-diff.js', 'src/core/text-diff.js', 'src/core/text-lines.js',
 )
 
 

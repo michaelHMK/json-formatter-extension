@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test && python3 -m unittest discover -s tests -p 'test_*.py'",
+    "bench": "node --expose-gc bench/search.mjs && node --expose-gc bench/diff.mjs",
     "check:release": "python3 build_release.py --check"
   }
 }

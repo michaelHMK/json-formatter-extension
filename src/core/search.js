@@ -1,4 +1,4 @@
-import { appendJsonPath, PATH_SEP } from './json-path.js';
+import { appendJsonPath } from './json-path.js';
 
 const MAX_MATCHES = 500;
 
@@ -15,57 +15,63 @@ export function searchData(data, query) {
   let matchCount = 0;
   let truncated = false;
 
-  const stack = [{ key: null, isIndex: false, value: data, path: '', depth: 0 }];
-  const ancestors = [];
+  // 只保存当前祖先的遍历游标；宽数组不需要为每个元素分配待访问节点。
+  const stack = [];
+  let depth = 0;
+  let value = data;
+  let key = null;
+  let isIndex = false;
 
-  while (stack.length) {
-    const item = stack.pop();
-    const { value, path, depth } = item;
-    ancestors.length = depth;
-
-    let matched = false;
-    if (item.key !== null && !item.isIndex && item.key.toLowerCase().includes(q)) {
-      matched = true;
-    }
-    if (!matched && (value === null || typeof value !== 'object')) {
-      if (String(value).toLowerCase().includes(q)) matched = true;
-    }
+  while (true) {
+    const isContainer = value !== null && typeof value === 'object';
+    const matched = (key !== null && !isIndex && key.toLowerCase().includes(q))
+      || (!isContainer && String(value).toLowerCase().includes(q));
     if (matched) {
       matchCount++;
       if (highlights.length < MAX_MATCHES) {
-        highlights.push(path);
-        for (let i = 0; i < depth; i++) forceExpand.add(ancestors[i]);
+        // 未命中以及达到展示上限后仅计数，不创建无用的 JSON Pointer。
+        let path = '';
+        for (let i = 0; i < depth; i++) {
+          const frame = stack[i];
+          if (frame.path === undefined) frame.path = appendJsonPath(path, frame.key);
+          path = frame.path;
+          forceExpand.add(path);
+        }
+        highlights.push(key === null ? '' : appendJsonPath(path, key));
       } else {
         truncated = true;
       }
     }
 
-    if (value !== null && typeof value === 'object') {
-      ancestors[depth] = path;
-      if (Array.isArray(value)) {
-        for (let i = value.length - 1; i >= 0; i--) {
-          stack.push({
-            key: String(i),
-            isIndex: true,
-            value: value[i],
-            path: path + PATH_SEP + i,
-            depth: depth + 1,
-          });
-        }
-      } else {
-        const keys = Object.keys(value);
-        for (let i = keys.length - 1; i >= 0; i--) {
-          const k = keys[i];
-          stack.push({
-            key: k,
-            isIndex: false,
-            value: value[k],
-            path: appendJsonPath(path, k),
-            depth: depth + 1,
-          });
-        }
+    if (isContainer) {
+      const keys = Array.isArray(value) ? null : Object.keys(value);
+      const length = keys === null ? value.length : keys.length;
+      if (length) {
+        // 同一深度复用游标，遍历大量小对象时避免逐对象分配帧。
+        let frame = stack[depth];
+        if (!frame) frame = stack[depth] = {};
+        frame.value = value;
+        frame.keys = keys;
+        frame.length = length;
+        frame.index = 0;
+        frame.key = key;
+        frame.path = key === null ? '' : undefined;
+        depth++;
       }
     }
+
+    while (depth && stack[depth - 1].index === stack[depth - 1].length) {
+      const frame = stack[--depth];
+      frame.value = null;
+      frame.keys = null;
+      frame.path = undefined;
+    }
+    if (!depth) break;
+    const frame = stack[depth - 1];
+    isIndex = frame.keys === null;
+    key = isIndex ? frame.index : frame.keys[frame.index];
+    value = frame.value[key];
+    frame.index++;
   }
 
   return { highlights, forceExpand: [...forceExpand], matchCount, truncated };

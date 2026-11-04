@@ -2,7 +2,7 @@
 
 [English](README.md) | 简体中文
 
-Chrome 扩展（Manifest V3）：零权限、纯本地、无广告的 JSON 工具箱。采用 Web Worker 解析与懒加载渲染，减少处理大 JSON 时的界面阻塞。不收集任何数据，不发起网络请求。
+Chrome 扩展（Manifest V3）：零权限、纯本地、无广告的 JSON 工具箱。采用 Web Worker 解析与虚拟滚动渲染，减少处理大 JSON 时的界面阻塞。不收集任何数据，不发起网络请求。
 
 当前版本见 [`manifest.json`](manifest.json) 中的 `version` 字段。
 
@@ -38,7 +38,7 @@ src/
     formatter.js
     compare.js
     transform.js       # 压缩、转义、去转义共用页面逻辑
-  shared/              # 导航、国际化、错误展示、复制、基础树节点与 Worker 客户端
+  shared/              # 导航、国际化、虚拟树/文本视图、复制与 Worker 协议
   core/                # 纯算法：JSON 排版、路径、搜索、结构对比、文本对比等
   worker/
     index.js           # Web Worker 消息入口
@@ -47,6 +47,7 @@ styles/app.css         # 五个页面共用样式
 icons/                 # 扩展图标（manifest 引用）
 _locales/              # 国际化文案
 tests/                 # 算法与通信契约、发布文件检查
+bench/                 # 搜索/对比算法基准与可选浏览器验证
 package.json           # 原生 ES modules 与测试命令，无第三方依赖
 gen_icons.py           # 重新生成 icons/ 下 PNG（可选）
 build_release.py       # 发布检查与白名单打包（Python 标准库）
@@ -60,12 +61,12 @@ store-assets/          # 商店截图和宣传图（不打进扩展 ZIP）
 | 边界 | 职责与约定 |
 | --- | --- |
 | `pages → shared` | 页面管理自己的状态；共享层负责浏览器交互。格式化树和对比树保留各自的展开、搜索及差异逻辑。 |
-| `pages/shared → core/json-path` | 树节点与算法共用 JSON Pointer 编码，避免特殊 key 的路径不一致。其余重计算通过 Worker 执行。 |
-| `shared/worker-client → worker/index` | `runTask(action, payload)` 返回 Promise；请求按 id 配对，全部完成才结束忙碌状态；任务或通信失败统一返回 `ok: false`。 |
-| `worker/tasks → core` | 每个 Worker 独立缓存最近一次 format/minify/parse 的数据供 search 使用。`includeData: false` 仅省略传回页面的数据，不清除缓存。 |
+| `pages/shared → core` | 视图使用 JSON Pointer 与文本行偏移索引；JSON 解析、搜索与对比通过 Worker 执行。 |
+| `shared/worker-client → worker/index` | 请求按 id 配对，全部完成才结束忙碌状态。页面启用串行队列，同类未发送任务只保留最新输入；清空取消排队任务，取消结果带 `cancelled: true`。 |
+| `worker/tasks → core` | 每个 Worker 独立缓存文档与最近一次对比。页面通过 `retainSnapshot`/`snapshotId` 复用解析结果；`includeData: false` 省略对象传输，切树视图再取。清空使快照失效，压缩页不保留不需要的搜索数据。 |
 | `core` | 不依赖 DOM、Chrome API 或 Worker 全局对象；无效输入抛出异常，由任务层转换为错误响应。数字原文字面量的扫描与恢复集中在 `json.js`。 |
 
-共享模块只提取已有的共同职责；两种树视图不通过通用渲染框架强行合并。新增任务时，先将算法放入 `core/`，再接入 `worker/tasks.js`；新增运行时文件还需加入 `build_release.py` 的白名单。
+共享虚拟视图负责窗口索引和 DOM 生命周期；页面保留各自的搜索、配对、筛选和导航逻辑。新增任务时，先将算法放入 `core/`，再接入 `worker/tasks.js`；新增运行时文件还需加入 `build_release.py` 的白名单。
 
 ## 开发验证
 
@@ -77,6 +78,24 @@ python3 build_release.py --check
 ```
 
 测试覆盖数字字面量与特殊 key、搜索缓存与结果上限、结构及文本对比、Worker 并发和故障响应，以及发布包的间接模块依赖。浏览器交互仍需按下文的功能清单验证。
+
+### 性能验证
+
+运行 `npm run bench` 测量搜索与对比算法性能。比较结果时，应在相同环境下串行运行基准。
+
+可选的浏览器验证覆盖大文本、虚拟树、导航和 Worker 数据传输，需要本地已有 Playwright 与 Chromium：
+
+```bash
+# 若本地可直接 import playwright，则无需设置此变量。
+export PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs
+# 可选：export CHROMIUM_EXECUTABLE=/path/to/chromium
+node bench/browser.mjs . --verify
+node bench/text-view.mjs
+node bench/tree-view.mjs
+node bench/worker-transfer.mjs
+```
+
+大结果使用虚拟显示，浏览器原生查找仅覆盖可见窗口，可使用树搜索或复制完整文本。输入和结果仍完整保留在内存中；较大的文本差异采用整块替换展示。
 
 日常使用优先按上文加载扩展。仅预览页面时可运行 `python3 -m http.server 8000`，访问 `http://localhost:8000/formatter.html`；原生模块不支持直接双击 HTML 的 `file://` 方式，HTTP 预览也不提供 Chrome 扩展国际化 API。
 

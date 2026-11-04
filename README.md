@@ -2,7 +2,7 @@
 
 English | [简体中文](README.zh-CN.md)
 
-A Chrome extension (Manifest V3) that provides a local, ad-free JSON toolbox with no permissions required. Web Worker processing and lazy rendering help keep the interface responsive when working with large JSON documents. The extension collects no data and makes no network requests.
+A Chrome extension (Manifest V3) that provides a local, ad-free JSON toolbox with no permissions required. Web Worker processing and virtual scrolling help keep the interface responsive when working with large JSON documents. The extension collects no data and makes no network requests.
 
 See the `version` field in [`manifest.json`](manifest.json) for the current version.
 
@@ -38,7 +38,7 @@ src/
     formatter.js
     compare.js
     transform.js       # Shared page logic for minify, escape, and unescape
-  shared/              # Navigation, i18n, feedback, clipboard, basic tree nodes, Worker client
+  shared/              # Navigation, i18n, virtual tree/text views, clipboard, Worker protocol
   core/                # Pure algorithms: JSON formatting, paths, search, structural/text diff
   worker/
     index.js           # Web Worker message entry point
@@ -47,6 +47,7 @@ styles/app.css         # Shared styles for all five pages
 icons/                 # Extension icons referenced by the manifest
 _locales/              # Translations
 tests/                 # Algorithm and messaging contracts, release validation
+bench/                 # Search/diff benchmarks and optional browser checks
 package.json           # Native ES modules and test commands; no third-party dependencies
 gen_icons.py           # Regenerate PNG files in icons/ (optional)
 build_release.py       # Release validation and allowlist packaging using Python's standard library
@@ -60,12 +61,12 @@ Runtime code uses native browser ES modules. No dependency installation or build
 | Boundary | Responsibilities and contracts |
 | --- | --- |
 | `pages → shared` | Pages own their state; shared modules handle browser interactions. The formatter and comparison trees retain their own expansion, search, and difference logic. |
-| `pages/shared → core/json-path` | Tree nodes and algorithms share JSON Pointer encoding so paths remain consistent for keys containing special characters. Other intensive computation runs in the Worker. |
-| `shared/worker-client → worker/index` | `runTask(action, payload)` returns a Promise. Requests and responses are matched by id, and the busy indicator stays active until all requests finish. Task and communication failures both return `ok: false`. |
-| `worker/tasks → core` | Each Worker independently caches the data from its most recent format/minify/parse operation for search. `includeData: false` only omits data from the response sent to the page; it does not clear the cache. |
+| `pages/shared → core` | Views use JSON Pointer encoding and line-offset indexes. JSON parsing, search, and comparison run in the Worker. |
+| `shared/worker-client → worker/index` | Requests match by id and busy lasts until all finish. Pages enable a serial queue that coalesces unsent work by key; clear discards queued work, whose responses carry `cancelled: true`. |
+| `worker/tasks → core` | Each Worker caches its current document/comparison. `retainSnapshot`/`snapshotId` reuse parsing; `includeData: false` defers object transfer until tree view is needed. Clear invalidates snapshots, and the minify page does not retain unused search data. |
 | `core` | Algorithms do not depend on the DOM, Chrome APIs, or Worker globals. Invalid input throws an exception, which the task layer converts to an error response. Scanning and restoring original number literals is centralized in `json.js`. |
 
-Shared modules extract responsibilities that are already common across pages; the two tree views keep their distinct behavior instead of using a general-purpose rendering framework. To add a task, place its algorithm in `core/` and connect it through `worker/tasks.js`. Add any new runtime files to the allowlist in `build_release.py` as well.
+Shared virtual renderers own viewport indexing and DOM lifecycles; pages retain their distinct search, pairing, filtering, and navigation behavior. To add a task, place its algorithm in `core/` and connect it through `worker/tasks.js`. Add any new runtime files to the allowlist in `build_release.py` as well.
 
 ## Development Checks
 
@@ -77,6 +78,26 @@ python3 build_release.py --check
 ```
 
 Tests cover number literals and special keys, cached search data and result limits, structural and text comparisons, concurrent Worker requests and failure responses, and transitive module dependencies in the release package. Browser interactions should also be checked using the checklist below.
+
+### Performance Checks
+
+Run `npm run bench` for search and diff benchmarks. Compare runs sequentially in the same environment.
+
+Optional browser checks require an existing Playwright installation and Chromium:
+
+```bash
+# Omit this if Playwright is already importable locally.
+export PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs
+# Optional browser override: export CHROMIUM_EXECUTABLE=/path/to/chromium
+node bench/browser.mjs . --verify
+node bench/text-view.mjs
+node bench/tree-view.mjs
+node bench/worker-transfer.mjs
+```
+
+These checks cover large text and trees, navigation, copying, view switching, and deeply nested Worker transfers.
+
+Large outputs use virtual rendering, so native browser Find covers only the visible window. Tree search and full copying remain available. Complete inputs and results stay in memory; large text diffs use block replacement.
 
 For normal use, load the extension as described above. To preview the pages, run `python3 -m http.server 8000` and visit `http://localhost:8000/formatter.html`. Native modules cannot be loaded by opening the HTML files directly through `file://`, and HTTP previews do not provide Chrome's extension internationalization API.
 

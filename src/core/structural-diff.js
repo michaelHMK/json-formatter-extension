@@ -53,7 +53,7 @@ function previewValue(v, path, numberLiterals) {
 }
 
 /*
- * 结构 diff：递归对齐两棵树，产出 added / removed / changed / typeChanged 四类差异。
+ * 结构 diff：深度优先对齐两棵树，产出 added / removed / changed / typeChanged 四类差异。
  * 数组默认按下标对齐；指定 keyField 且两边元素都是含该字段的对象时按主键配对，
  * 元素换位不算差异；不满足条件则回退下标模式并置 keyFallback。
  * 忽略路径为精确段匹配（* 匹配任意单段），命中即不收录。
@@ -71,7 +71,16 @@ export function diffData(left, right, options) {
   let truncated = false;
   let keyFallback = false;
 
-  const ignored = (segs) => ignoreSegs.some((p) => matchSegments(p, segs));
+  const ignoreByDepth = new Map();
+  for (const pattern of ignoreSegs) {
+    const patterns = ignoreByDepth.get(pattern.length);
+    if (patterns) patterns.push(pattern);
+    else ignoreByDepth.set(pattern.length, [pattern]);
+  }
+  const ignored = (segs) => {
+    const patterns = ignoreByDepth.get(segs.length);
+    return patterns ? patterns.some((pattern) => matchSegments(pattern, segs)) : false;
+  };
 
   // 与树渲染共用 JSON Pointer 路径，任意 key 都能无损编码
   function toPath(segs) {
@@ -85,13 +94,15 @@ export function diffData(left, right, options) {
     if (rightSegs && ignored(rightSegs)) return;
     stats[type]++;
     if (diffs.length < MAX_DIFFS) {
+      const leftPath = leftSegs ? toPath(leftSegs) : null;
+      const rightPath = rightSegs ? toPath(rightSegs) : null;
       diffs.push({
         type,
-        leftPath: leftSegs ? toPath(leftSegs) : null,
-        rightPath: rightSegs ? toPath(rightSegs) : null,
+        leftPath,
+        rightPath,
         display: displayPath(rightSegs || leftSegs),
-        leftPreview: previewValue(lv, leftSegs ? toPath(leftSegs) : null, leftNumberLiterals),
-        rightPreview: previewValue(rv, rightSegs ? toPath(rightSegs) : null, rightNumberLiterals),
+        leftPreview: previewValue(lv, leftPath, leftNumberLiterals),
+        rightPreview: previewValue(rv, rightPath, rightNumberLiterals),
       });
     } else {
       truncated = true;
@@ -110,77 +121,133 @@ export function diffData(left, right, options) {
     return true;
   }
 
-  function walk(lv, rv, leftSegs, rightSegs) {
+  // 活动帧按深度复用，不依赖调用栈，也不为每个待访问节点分配任务对象。
+  // type: 1=对象，2=按下标对齐的数组，3=按主键配对的数组。
+  const frames = [];
+  const leftSegs = [];
+  const rightSegs = [];
+
+  function enter(lv, rv, depth) {
+    if (lv === rv && !keyField) return false;
     const lObj = lv !== null && typeof lv === 'object';
     const rObj = rv !== null && typeof rv === 'object';
     if (!lObj || !rObj) {
       if (lObj !== rObj) record('typeChanged', leftSegs, rightSegs, lv, rv);
       else if (lv !== rv) record('changed', leftSegs, rightSegs, lv, rv);
-      return;
+      return false;
     }
     const lArr = Array.isArray(lv);
-    const rArr = Array.isArray(rv);
-    if (lArr !== rArr) {
+    if (lArr !== Array.isArray(rv)) {
       record('typeChanged', leftSegs, rightSegs, lv, rv);
-      return;
+      return false;
     }
+    let frame = frames[depth];
+    if (!frame) {
+      frame = { left: null, right: null, type: 0, index: 0, length: 0, keys: null, rightByKey: null, matched: null };
+      frames[depth] = frame;
+    }
+    frame.left = lv;
+    frame.right = rv;
+    frame.index = 0;
     if (!lArr) {
-      for (const k of Object.keys(lv)) {
-        const ls = leftSegs.concat(k);
-        if (Object.prototype.hasOwnProperty.call(rv, k)) {
-          walk(lv[k], rv[k], ls, rightSegs.concat(k));
-        } else {
-          record('removed', ls, null, lv[k]);
-        }
-      }
-      for (const k of Object.keys(rv)) {
-        if (!Object.prototype.hasOwnProperty.call(lv, k)) {
-          record('added', null, rightSegs.concat(k), undefined, rv[k]);
-        }
-      }
-      return;
-    }
-    // 数组
-    if (isKeyed(lv) && isKeyed(rv)) {
+      frame.type = 1;
+      frame.keys = Object.keys(lv);
+    } else if (isKeyed(lv) && isKeyed(rv)) {
+      frame.type = 3;
       const rightByKey = new Map();
       for (let j = 0; j < rv.length; j++) {
-        const k = String(rv[j][keyField]);
-        if (!rightByKey.has(k)) rightByKey.set(k, j);
+        const key = String(rv[j][keyField]);
+        if (!rightByKey.has(key)) rightByKey.set(key, j);
       }
-      const matched = new Set();
-      for (let i = 0; i < lv.length; i++) {
-        const k = String(lv[i][keyField]);
-        const ls = leftSegs.concat(String(i));
-        if (rightByKey.has(k) && !matched.has(rightByKey.get(k))) {
-          const j = rightByKey.get(k);
-          matched.add(j);
-          const rs = rightSegs.concat(String(j));
-          if (i !== j && pairs.length < MAX_PAIRS) {
-            pairs.push([toPath(ls), toPath(rs)]);
-          }
-          walk(lv[i], rv[j], ls, rs);
-        } else {
-          record('removed', ls, null, lv[i]);
-        }
-      }
-      for (let j = 0; j < rv.length; j++) {
-        if (!matched.has(j)) record('added', null, rightSegs.concat(String(j)), undefined, rv[j]);
-      }
+      frame.rightByKey = rightByKey;
+      frame.matched = new Uint8Array(rv.length);
     } else {
+      frame.type = 2;
+      frame.length = Math.min(lv.length, rv.length);
       if (keyField && (lv.length || rv.length)) keyFallback = true;
-      const n = Math.min(lv.length, rv.length);
-      for (let i = 0; i < n; i++) {
-        const s = String(i);
-        walk(lv[i], rv[i], leftSegs.concat(s), rightSegs.concat(s));
-      }
-      for (let i = n; i < lv.length; i++) record('removed', leftSegs.concat(String(i)), null, lv[i]);
-      for (let i = n; i < rv.length; i++) {
-        record('added', null, rightSegs.concat(String(i)), undefined, rv[i]);
-      }
     }
+    return true;
   }
 
-  walk(left, right, [], []);
+  let depth = enter(left, right, 0) ? 0 : -1;
+  while (depth >= 0) {
+    const frame = frames[depth];
+    const lv = frame.left;
+    const rv = frame.right;
+    if (frame.type === 1) {
+      if (frame.index < frame.keys.length) {
+        const key = frame.keys[frame.index++];
+        leftSegs.push(key);
+        if (Object.prototype.hasOwnProperty.call(rv, key)) {
+          rightSegs.push(key);
+          if (enter(lv[key], rv[key], depth + 1)) depth++;
+          else { leftSegs.pop(); rightSegs.pop(); }
+        } else {
+          record('removed', leftSegs, null, lv[key]);
+          leftSegs.pop();
+        }
+        continue;
+      }
+      for (const key of Object.keys(rv)) {
+        if (!Object.prototype.hasOwnProperty.call(lv, key)) {
+          rightSegs.push(key);
+          record('added', null, rightSegs, undefined, rv[key]);
+          rightSegs.pop();
+        }
+      }
+    } else if (frame.type === 2) {
+      if (frame.index < frame.length) {
+        const i = frame.index++;
+        const key = String(i);
+        leftSegs.push(key);
+        rightSegs.push(key);
+        if (enter(lv[i], rv[i], depth + 1)) depth++;
+        else { leftSegs.pop(); rightSegs.pop(); }
+        continue;
+      }
+      for (let i = frame.length; i < lv.length; i++) {
+        leftSegs.push(String(i));
+        record('removed', leftSegs, null, lv[i]);
+        leftSegs.pop();
+      }
+      for (let i = frame.length; i < rv.length; i++) {
+        rightSegs.push(String(i));
+        record('added', null, rightSegs, undefined, rv[i]);
+        rightSegs.pop();
+      }
+    } else {
+      if (frame.index < lv.length) {
+        const i = frame.index++;
+        const j = frame.rightByKey.get(String(lv[i][keyField]));
+        leftSegs.push(String(i));
+        if (j !== undefined && !frame.matched[j]) {
+          frame.matched[j] = 1;
+          rightSegs.push(String(j));
+          if (i !== j && pairs.length < MAX_PAIRS) pairs.push([toPath(leftSegs), toPath(rightSegs)]);
+          if (enter(lv[i], rv[j], depth + 1)) depth++;
+          else { leftSegs.pop(); rightSegs.pop(); }
+        } else {
+          record('removed', leftSegs, null, lv[i]);
+          leftSegs.pop();
+        }
+        continue;
+      }
+      for (let j = 0; j < rv.length; j++) {
+        if (!frame.matched[j]) {
+          rightSegs.push(String(j));
+          record('added', null, rightSegs, undefined, rv[j]);
+          rightSegs.pop();
+        }
+      }
+    }
+    frame.keys = null;
+    frame.rightByKey = null;
+    frame.matched = null;
+    leftSegs.pop();
+    rightSegs.pop();
+    depth--;
+  }
+
   return {
     diffs,
     pairs,

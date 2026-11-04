@@ -69,6 +69,24 @@ test('search ignores array indexes and caps details while counting every match',
   assert.equal(run('search', '0', {}, handler).matchCount, 0);
 });
 
+test('clear releases worker search data and leaves the session reusable', () => {
+  const handler = createTaskHandler();
+  run('parse', '{"value":"needle"}', {}, handler);
+  run('clear', undefined, {}, handler);
+  assert.equal(handler({ action: 'search', text: 'needle' }).ok, false);
+  run('format', '["next"]', {}, handler);
+  assert.equal(run('search', 'next', {}, handler).matchCount, 1);
+});
+
+test('a text-only minify caller can release parsed data instead of retaining a search cache', () => {
+  const handler = createTaskHandler();
+  run('parse', '{"old":"needle"}', {}, handler);
+  assert.equal(run('minify', '{"next":1.00}', { retainSearch: false }, handler).text, '{"next":1.00}');
+  assert.equal(handler({ action: 'search', text: 'next' }).ok, false);
+  run('minify', '{"next":1}', {}, handler);
+  assert.equal(run('search', 'next', {}, handler).matchCount, 1);
+});
+
 test('escape/unescape round-trip quotes, control characters and Unicode', () => {
   const text = '中😀\n\t\r\u0000"\\/\u2028';
   assert.equal(run('unescape', run('escape', text).text).text, text);
