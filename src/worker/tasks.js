@@ -7,7 +7,7 @@ import { parseErrorLocation } from '../core/parse-error.js';
 
 /**
  * 一次 Worker 会话的任务入口。format/minify/parse 更新搜索数据；
- * 其他操作不改变它。includeData 只控制响应传输，不影响 Worker 内的缓存。
+ * clear 释放搜索数据，其他操作不改变它。includeData 只控制响应传输，不影响 Worker 内的缓存。
  * 输入 { id, action, text, ... }，返回带耗时的成功结果或含可用行列位置的错误。
  */
 export function createTaskHandler() {
@@ -15,6 +15,9 @@ export function createTaskHandler() {
 
   function runAction({ action, text, indent, ...options }) {
     switch (action) {
+      case 'clear':
+        lastData = undefined;
+        return {};
       case 'format': {
         const includeData = options.includeData !== false;
         const formatted = formatJson(text, { indent, includeNumberLiterals: includeData });

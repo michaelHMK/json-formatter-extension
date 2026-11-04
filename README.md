@@ -47,6 +47,7 @@ styles/app.css         # Shared styles for all five pages
 icons/                 # Extension icons referenced by the manifest
 _locales/              # Translations
 tests/                 # Algorithm and messaging contracts, release validation
+bench/                 # Search/diff benchmarks and optional browser checks
 package.json           # Native ES modules and test commands; no third-party dependencies
 gen_icons.py           # Regenerate PNG files in icons/ (optional)
 build_release.py       # Release validation and allowlist packaging using Python's standard library
@@ -77,6 +78,35 @@ python3 build_release.py --check
 ```
 
 Tests cover number literals and special keys, cached search data and result limits, structural and text comparisons, concurrent Worker requests and failure responses, and transitive module dependencies in the release package. Browser interactions should also be checked using the checklist below.
+
+### Performance Checks
+
+Run `npm run bench` for search and diff benchmarks. Each case has two warmups and seven measured samples; the scripts report medians and accept a baseline module/source directory. Memory deltas include temporary allocations awaiting GC and are neither peak nor retained memory. Run benchmarks sequentially.
+
+On 2026-11-04, Linux, i5-12400, Node 24.16.0, comparing against `f070f32` with synthetic inputs:
+
+| Scenario | Before | After |
+| --- | ---: | ---: |
+| Search a 1-million-element array | 110.59 ms | 16.03 ms |
+| Search a 200,000-field object | 59.22 ms | 45.65 ms |
+| Compare 50,000 nested records | 142.66 ms | 24.36 ms |
+| Compare 50,000 reversed records by key | 181.80 ms | 48.32 ms |
+| Exact text diff, 1,500 changed lines per side | 58.87 ms | 38.02 ms |
+
+Search reuses active traversal cursors and generates paths only for the first 500 matches while counting every match. Structural diff reuses path stacks. Myers diff stores only active diagonals, reducing trace buffers from about 72 MB to 18 MB in this worst-case fixture; identical text avoids two line arrays.
+
+Trees render the first 200 children plus relevant matches/differences, with gaps loaded on demand. Object keys are cached per container, and expansion levels no longer require a full-tree traversal. Clear releases Worker search data and comparison indexes, and discards stale responses.
+
+An optional browser benchmark uses an existing development installation of Playwright and Chromium, with no extension runtime dependency:
+
+```bash
+PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node bench/browser.mjs . --verify
+# Set CHROMIUM_EXECUTABLE=/path/to/chromium to use a custom browser binary.
+```
+
+The script starts a temporary local HTTP server and checks distant matches, pagination, diff navigation, and clear. In one Chromium 153 before/after run, comparing two 20,000-element arrays with one change reduced tree entries from 40,002 to 404 and elapsed time through painting from about 787 to 81 ms. Search entries fell from 20,001 to 202. Browser timings include Worker work, transfer, DOM, and painting; search also includes a 300 ms debounce. They are not directly comparable to algorithm timings. HTTP preview does not validate extension installation or Chrome i18n.
+
+Inputs are still parsed in full, tree data crosses the Worker boundary, and text views retain full output. This is not a streaming parser or a scroll-virtualized list. Very deep recursive comparisons/rendering and many expanded nodes remain limitations. Text diff still falls back to block replacement above 3,000 middle lines. Further work for very large files should measure these stages with representative inputs.
 
 For normal use, load the extension as described above. To preview the pages, run `python3 -m http.server 8000` and visit `http://localhost:8000/formatter.html`. Native modules cannot be loaded by opening the HTML files directly through `file://`, and HTTP previews do not provide Chrome's extension internationalization API.
 

@@ -459,5 +459,16 @@
         "content": "$1"
       }
     }
+  },
+  "showMoreRange": {
+    "message": "显示另外 $count$ 项（此处尚余 $remaining$ 项）",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "remaining": {
+        "content": "$2"
+      }
+    }
   }
 }

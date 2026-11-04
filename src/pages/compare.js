@@ -2,8 +2,8 @@ import { initializePage } from '../shared/page.js';
 import { t } from '../shared/i18n.js';
 import { createTaskRunner } from '../shared/worker-client.js';
 import { createFeedback } from '../shared/feedback.js';
-import { appendJsonPath, PATH_SEP } from '../core/json-path.js';
-import { span, primitiveNode } from '../shared/json-tree.js';
+import { PATH_SEP } from '../core/json-path.js';
+import { span, primitiveNode, createChildPathIndex, renderChildPages } from '../shared/json-tree.js';
 
 initializePage();
 
@@ -29,8 +29,6 @@ const diffNavEl = $('diff-nav');
 const diffInfoEl = $('diff-info');
 
 const CHUNK = 200;
-// 差异祖先路径上的容器，子节点数不超过该值才一次性全量渲染
-const FULL_RENDER_LIMIT = 20000;
 // 两棵树共享的渲染节点预算
 const RENDER_BUDGET = 100000;
 // 文本 diff 视图渲染的行数预算
@@ -40,6 +38,10 @@ const state = {
   view: 'struct',      // 'struct' | 'text'
   result: null,        // 结构 diff 结果
   textResult: null,    // 文本 diff 结果（每次对比后失效重算）
+  treesDirty: true,
+  leftText: '',
+  rightText: '',
+  children: { left: new Map(), right: new Map() },
   leftData: undefined,
   rightData: undefined,
   leftNumberLiterals: null,
@@ -50,12 +52,14 @@ const state = {
   renderLimited: false,
   expanded: { left: new Set(), right: new Set() },     // 用户手动展开
   force: { left: new Set(), right: new Set() },        // 差异祖先，自动展开
-  interesting: { left: new Set(), right: new Set() },  // 差异 ∪ 祖先（只看差异用）
   diffMap: { left: new Map(), right: new Map() },      // path → diff 记录
   pairLR: new Map(),   // 主键配对导致的左路径 → 右路径
   pairRL: new Map(),
   elemMap: { left: new Map(), right: new Map() },      // path → DOM entry
 };
+
+let dataVersion = 0;
+let textRequest = null;
 
 const runTask = createTaskRunner({
   onBusyChange: (busy) => { busyEl.hidden = !busy; },
@@ -75,23 +79,37 @@ async function doCompare() {
     return;
   }
   hideError();
+  const version = ++dataVersion;
+  textRequest = null;
   const ignorePaths = ignoreInput.value
     .split(/[,，\n]/)
     .map((s) => s.trim())
     .filter(Boolean);
   const keyField = arrayModeSel.value === 'key' ? keyFieldInput.value.trim() : '';
   const res = await runTask('diff', { text: lt, text2: rt, keyField, ignorePaths });
+  if (version !== dataVersion) return;
   if (!res.ok) {
     showError(t('errCompareFailed') + res.error);
     return;
   }
   state.result = res.result;
+  state.leftText = lt;
+  state.rightText = rt;
+  textRequest = null;
   state.textResult = null; // 输入变了，文本 diff 需重算
+  state.treesDirty = true;
+  // 文本模式也释放上一轮结构视图，避免隐藏 DOM 的闭包保留旧数据。
+  treeLeftEl.innerHTML = '';
+  treeRightEl.innerHTML = '';
+  textView.innerHTML = '';
+  state.elemMap.left.clear();
+  state.elemMap.right.clear();
   buildIndexes();
   state.diffIndex = -1;
   resultEl.hidden = false;
   if (state.view === 'text') {
     await loadTextDiff();
+    if (version !== dataVersion) return;
   } else {
     refreshTrees();
   }
@@ -107,7 +125,6 @@ function buildIndexes() {
   for (const side of ['left', 'right']) {
     state.diffMap[side] = new Map();
     state.force[side] = new Set();
-    state.interesting[side] = new Set();
     state.expanded[side] = new Set();
   }
   state.pairLR = new Map(r.pairs);
@@ -116,20 +133,21 @@ function buildIndexes() {
     addPath('left', d.leftPath, d);
     addPath('right', d.rightPath, d);
   }
+  for (const side of ['left', 'right']) {
+    state.children[side] = createChildPathIndex(state.diffMap[side].keys());
+  }
 }
 
-// 把差异路径及其所有祖先登记到 diffMap / force / interesting
+// 把差异路径及其所有祖先登记到 diffMap / force
 function addPath(side, path, d) {
   if (path === null) return;
   state.diffMap[side].set(path, d);
-  state.interesting[side].add(path);
   if (path === '') return;
   const segs = path.split(PATH_SEP);
   let cur = '';
   for (let i = 0; i < segs.length - 1; i++) {
     cur = i === 0 ? segs[i] : cur + PATH_SEP + segs[i];
     state.force[side].add(cur);
-    state.interesting[side].add(cur);
   }
 }
 
@@ -158,6 +176,7 @@ function refreshTrees() {
 }
 
 function renderTrees() {
+  state.treesDirty = false;
   state.renderedCount = 0;
   state.renderLimited = false;
   state.elemMap.left = new Map();
@@ -202,7 +221,8 @@ function renderEntry(parentEl, key, isIndex, value, path, side) {
 
 function renderContainer(entry, row, key, isIndex, value, path, side) {
   const isArr = Array.isArray(value);
-  const size = isArr ? value.length : Object.keys(value).length;
+  const keys = isArr ? null : Object.keys(value);
+  const size = isArr ? value.length : keys.length;
   const isRoot = path === '';
   const wantOpen = isRoot || state.expanded[side].has(path) || state.force[side].has(path);
   const open = wantOpen && state.renderedCount < RENDER_BUDGET;
@@ -234,13 +254,14 @@ function renderContainer(entry, row, key, isIndex, value, path, side) {
   const renderKids = () => {
     if (children.dataset.done) return;
     children.dataset.done = '1';
-    if (state.onlyDiff) {
-      renderChildrenFiltered(children, value, path, side);
-    } else {
-      // 差异路径上的容器一次性全量渲染，保证差异可见；其余按块懒加载
-      const full = state.force[side].has(path) && size <= FULL_RENDER_LIMIT;
-      renderChildren(children, value, path, side, 0, full ? Infinity : CHUNK);
-    }
+    renderChildPages(children, value, path, {
+      keys,
+      requiredPaths: state.children[side].get(path),
+      onlyRequired: state.onlyDiff,
+      chunkSize: CHUNK,
+      renderEntry: (parent, key, isIndex, child, childPath) =>
+        renderEntry(parent, key, isIndex, child, childPath, side),
+    });
   };
 
   const applyOpen = (o, byUser) => {
@@ -279,46 +300,6 @@ function renderContainer(entry, row, key, isIndex, value, path, side) {
   });
 
   applyOpen(open, false);
-}
-
-function renderChildren(container, obj, basePath, side, start, limit) {
-  const isArr = Array.isArray(obj);
-  const keys = isArr ? null : Object.keys(obj);
-  const total = isArr ? obj.length : keys.length;
-  const end = Math.min(total, start + limit);
-
-  const frag = document.createDocumentFragment();
-  for (let i = start; i < end; i++) {
-    const k = isArr ? i : keys[i];
-    renderEntry(frag, k, isArr, obj[k], appendJsonPath(basePath, k), side);
-  }
-  container.appendChild(frag);
-
-  if (end < total) {
-    const more = document.createElement('button');
-    more.className = 'more';
-    more.textContent = t('showMore', [end.toLocaleString(), total.toLocaleString()]);
-    more.addEventListener('click', () => {
-      more.remove();
-      renderChildren(container, obj, basePath, side, end, CHUNK);
-    });
-    container.appendChild(more);
-  }
-}
-
-// 只看差异模式：只渲染差异路径及其祖先
-function renderChildrenFiltered(container, obj, basePath, side) {
-  const isArr = Array.isArray(obj);
-  const keys = isArr ? null : Object.keys(obj);
-  const total = isArr ? obj.length : keys.length;
-  const frag = document.createDocumentFragment();
-  for (let i = 0; i < total; i++) {
-    const k = isArr ? i : keys[i];
-    const childPath = appendJsonPath(basePath, k);
-    if (!state.interesting[side].has(childPath)) continue;
-    renderEntry(frag, k, isArr, obj[k], childPath, side);
-  }
-  container.appendChild(frag);
 }
 
 /* ================= 差异导航 ================= */
@@ -374,12 +355,17 @@ function updateDiffInfo() {
 
 /* ================= 文本 diff 视图 ================= */
 async function loadTextDiff() {
+  const version = dataVersion;
+  const comparison = state.result;
   if (!state.textResult) {
-    const res = await runTask('textDiff', {
-      text: inputLeft.value,
-      text2: inputRight.value,
+    textRequest ||= runTask('textDiff', {
+      text: state.leftText,
+      text2: state.rightText,
       indent: '2',
     });
+    const res = await textRequest;
+    if (version !== dataVersion || comparison !== state.result) return false;
+    textRequest = null;
     if (!res.ok) {
       showError(t('errTextDiffFailed') + res.error);
       return false;
@@ -417,14 +403,14 @@ function renderTextDiff() {
       if (op.count > 8) {
         for (let i = 0; i < 3; i++) addRow('same', '  ' + aLines[op.aStart + i]);
         addRow('gap', t('textDiffGap', [String(op.count - 6)]));
-        for (let i = op.count - 3; i < op.count; i++) addRow('same', '  ' + aLines[op.aStart + i]);
+        for (let i = op.count - 3; i < op.count && !truncated; i++) addRow('same', '  ' + aLines[op.aStart + i]);
       } else {
-        for (let i = 0; i < op.count; i++) addRow('same', '  ' + aLines[op.aStart + i]);
+        for (let i = 0; i < op.count && !truncated; i++) addRow('same', '  ' + aLines[op.aStart + i]);
       }
     } else if (op.type === 'del') {
-      for (let i = 0; i < op.count; i++) addRow('del', '- ' + aLines[op.aStart + i]);
+      for (let i = 0; i < op.count && !truncated; i++) addRow('del', '- ' + aLines[op.aStart + i]);
     } else {
-      for (let i = 0; i < op.count; i++) addRow('add', '+ ' + bLines[op.bStart + i]);
+      for (let i = 0; i < op.count && !truncated; i++) addRow('add', '+ ' + bLines[op.bStart + i]);
     }
     if (truncated) break;
   }
@@ -453,6 +439,7 @@ async function setCompareView(view) {
   diffNavEl.style.visibility = view === 'struct' ? '' : 'hidden';
   if (!state.result) return;
   if (view === 'text') await loadTextDiff();
+  else if (state.treesDirty) refreshTrees();
 }
 
 /* ================= 其他操作 ================= */
@@ -464,9 +451,23 @@ function doSwap() {
 }
 
 function doClear() {
+  dataVersion++;
+  textRequest = null;
+  state.leftText = '';
+  state.rightText = '';
+  for (const side of ['left', 'right']) {
+    state.elemMap[side].clear();
+    state.diffMap[side].clear();
+    state.force[side].clear();
+    state.expanded[side].clear();
+    state.children[side].clear();
+  }
+  state.pairLR.clear();
+  state.pairRL.clear();
   inputLeft.value = '';
   inputRight.value = '';
   state.result = null;
+  state.treesDirty = true;
   state.textResult = null;
   state.leftData = undefined;
   state.rightData = undefined;
@@ -534,6 +535,7 @@ arrayModeSel.addEventListener('change', () => {
 
 onlyDiffChk.addEventListener('change', () => {
   state.onlyDiff = onlyDiffChk.checked;
+  state.treesDirty = true;
   if (state.result && state.view === 'struct') refreshTrees();
 });
 

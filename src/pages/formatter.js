@@ -3,8 +3,7 @@ import { t } from '../shared/i18n.js';
 import { createTaskRunner } from '../shared/worker-client.js';
 import { createFeedback } from '../shared/feedback.js';
 import { copyText } from '../shared/clipboard.js';
-import { appendJsonPath, PATH_SEP } from '../core/json-path.js';
-import { span, primitiveNode } from '../shared/json-tree.js';
+import { span, primitiveNode, createChildPathIndex, renderChildPages } from '../shared/json-tree.js';
 
 initializePage();
 
@@ -26,8 +25,6 @@ const levelBox = $('level-box');
 const levelSelect = $('level-select');
 
 const CHUNK = 200;
-// 搜索命中时，容器子节点数不超过该值才一次性全量渲染
-const FULL_RENDER_LIMIT = 20000;
 // 单次渲染的节点数预算，防止「展开全部」在超大 JSON 上把页面卡死
 const RENDER_BUDGET = 100000;
 
@@ -38,7 +35,10 @@ const state = {
   numberLiterals: null, // 数字在原文中的字面量（path → 文本）
   dataSource: '',      // data 对应的原始文本，用于判断是否需要重新解析
   expanded: new Set(), // 用户手动展开的路径
+  collapsed: new Set(), // 用户折叠优先于层级展开
+  expandLevel: 1,      // 按需判断可见节点，不预先遍历整棵树
   searchForce: new Set(),  // 搜索命中需要强制展开的祖先路径
+  searchChildren: new Map(), // 每个容器必须展示的命中子路径
   highlights: new Set(),   // 搜索命中的路径
   matchCount: 0,
   matchTruncated: false,
@@ -47,6 +47,8 @@ const state = {
   renderedCount: 0,    // 本轮 renderTree 已渲染的节点数
   renderLimited: false, // 是否因触及预算而截断了展开
 };
+
+let dataVersion = 0;
 
 const runTask = createTaskRunner({
   onBusyChange: (busy) => { busyEl.hidden = !busy; },
@@ -87,7 +89,9 @@ async function ensureTreeData() {
   }
   if (state.data !== undefined && state.dataSource === text) return true;
   hideError();
+  const version = dataVersion;
   const res = await runTask('parse', { text });
+  if (version !== dataVersion || text !== currentText()) return false;
   if (!res.ok) {
     showParseError(text, res);
     return false;
@@ -119,7 +123,9 @@ async function doFormat() {
     return;
   }
   hideError();
+  const version = ++dataVersion;
   const res = await runTask('format', { text, indent: indentSel.value, includeData: state.view === 'tree' });
+  if (version !== dataVersion) return;
   if (!res.ok) {
     showParseError(text, res);
     return;
@@ -150,15 +156,23 @@ async function doCopy() {
 }
 
 function doClear() {
+  dataVersion++;
+  clearTimeout(searchTimer);
+  searchTimer = 0;
+  void runTask('clear');
   inputEl.value = '';
   state.outputText = '';
   state.data = undefined;
   state.numberLiterals = null;
   state.dataSource = '';
   state.expanded.clear();
+  state.collapsed.clear();
+  state.expandLevel = 1;
   state.searchForce.clear();
+  state.searchChildren.clear();
   state.highlights.clear();
   state.matchCount = 0;
+  state.matchTruncated = false;
   state.matchIndex = -1;
   state.searchQuery = '';
   searchInput.value = '';
@@ -190,7 +204,7 @@ function renderTree() {
   state.renderLimited = false;
   const root = document.createElement('div');
   root.className = 'tree-root';
-  renderEntry(root, null, false, state.data, '');
+  renderEntry(root, null, false, state.data, '', 0);
   treeEl.appendChild(root);
   if (state.renderLimited) {
     setStatus(t('renderLimitedTree', [RENDER_BUDGET.toLocaleString()]));
@@ -199,7 +213,7 @@ function renderTree() {
   else updateMatchInfo();
 }
 
-function renderEntry(parentEl, key, isIndex, value, path) {
+function renderEntry(parentEl, key, isIndex, value, path, depth) {
   state.renderedCount++;
   const entry = document.createElement('div');
   entry.className = 'entry';
@@ -210,7 +224,7 @@ function renderEntry(parentEl, key, isIndex, value, path) {
   entry.appendChild(row);
 
   if (value !== null && typeof value === 'object') {
-    renderContainer(entry, row, key, isIndex, value, path);
+    renderContainer(entry, row, key, isIndex, value, path, depth);
   } else {
     row.appendChild(span('toggle-spacer', ''));
     if (key !== null) {
@@ -222,11 +236,13 @@ function renderEntry(parentEl, key, isIndex, value, path) {
   parentEl.appendChild(entry);
 }
 
-function renderContainer(entry, row, key, isIndex, value, path) {
+function renderContainer(entry, row, key, isIndex, value, path, depth) {
   const isArr = Array.isArray(value);
-  const size = isArr ? value.length : Object.keys(value).length;
+  const keys = isArr ? null : Object.keys(value);
+  const size = isArr ? value.length : keys.length;
   const isRoot = path === '';
-  const wantOpen = isRoot || state.expanded.has(path) || state.searchForce.has(path);
+  const wantOpen = isRoot || state.searchForce.has(path) ||
+    (!state.collapsed.has(path) && (state.expanded.has(path) || depth < state.expandLevel));
   const open = wantOpen && state.renderedCount < RENDER_BUDGET;
   if (wantOpen && !open) state.renderLimited = true;
 
@@ -256,9 +272,13 @@ function renderContainer(entry, row, key, isIndex, value, path) {
   const renderKids = () => {
     if (children.dataset.done) return;
     children.dataset.done = '1';
-    // 命中路径上的容器一次性全量渲染，保证匹配可见；其余按块懒加载
-    const full = state.searchForce.has(path) && size <= FULL_RENDER_LIMIT;
-    renderChildren(children, value, path, 0, full ? Infinity : CHUNK);
+    renderChildPages(children, value, path, {
+      keys,
+      requiredPaths: state.searchChildren.get(path),
+      chunkSize: CHUNK,
+      renderEntry: (parent, childKey, isIndex, child, childPath) =>
+        renderEntry(parent, childKey, isIndex, child, childPath, depth + 1),
+    });
   };
 
   const applyOpen = (o, byUser) => {
@@ -268,8 +288,13 @@ function renderContainer(entry, row, key, isIndex, value, path) {
     summary.style.display = o ? 'none' : '';
     closeBracket.style.display = o ? 'none' : '';
     if (byUser) {
-      if (o) state.expanded.add(path);
-      else state.expanded.delete(path);
+      if (o) {
+        state.expanded.add(path);
+        state.collapsed.delete(path);
+      } else {
+        state.expanded.delete(path);
+        state.collapsed.add(path);
+      }
     }
     if (o) renderKids();
   };
@@ -286,59 +311,13 @@ function renderContainer(entry, row, key, isIndex, value, path) {
   applyOpen(open, false);
 }
 
-function renderChildren(container, obj, basePath, start, limit) {
-  const isArr = Array.isArray(obj);
-  const keys = isArr ? null : Object.keys(obj);
-  const total = isArr ? obj.length : keys.length;
-  const end = Math.min(total, start + limit);
-
-  const frag = document.createDocumentFragment();
-  for (let i = start; i < end; i++) {
-    const k = isArr ? i : keys[i];
-    renderEntry(frag, k, isArr, obj[k], appendJsonPath(basePath, k));
-  }
-  container.appendChild(frag);
-
-  if (end < total) {
-    const more = document.createElement('button');
-    more.className = 'more';
-    more.textContent = t('showMore', [end.toLocaleString(), total.toLocaleString()]);
-    more.addEventListener('click', () => {
-      more.remove();
-      renderChildren(container, obj, basePath, end, CHUNK);
-    });
-    container.appendChild(more);
-  }
-}
-
 /* ================= 层级展开 ================= */
-// 收集深度在 [1, level-1] 区间的容器路径（根始终展开，不需要进集合）
-function collectExpandPaths(level) {
-  const paths = new Set();
-  const stack = [{ value: state.data, path: '', depth: 0 }];
-  while (stack.length) {
-    const { value, path, depth } = stack.pop();
-    if (value === null || typeof value !== 'object') continue;
-    if (depth >= 1 && depth < level) paths.add(path);
-    if (depth + 1 < level) {
-      if (Array.isArray(value)) {
-        for (let i = 0; i < value.length; i++) {
-          stack.push({ value: value[i], path: path + PATH_SEP + i, depth: depth + 1 });
-        }
-      } else {
-        for (const k of Object.keys(value)) {
-          stack.push({ value: value[k], path: appendJsonPath(path, k), depth: depth + 1 });
-        }
-      }
-    }
-  }
-  return paths;
-}
-
 function applyLevel(value) {
   if (state.data === undefined || !value) return;
   const level = value === 'all' ? Infinity : Number(value);
-  state.expanded = collectExpandPaths(level);
+  state.expandLevel = level;
+  state.expanded.clear();
+  state.collapsed.clear();
   renderTree();
   if (!state.renderLimited) {
     setStatus(level === Infinity ? t('expandedAll') : t('expandedLevel', [String(level)]));
@@ -364,19 +343,22 @@ async function runSearch() {
   if (!q) {
     state.highlights = new Set();
     state.searchForce = new Set();
+    state.searchChildren = new Map();
     state.matchCount = 0;
     state.matchTruncated = false;
     renderTree();
     return;
   }
+  const version = dataVersion;
   const res = await runTask('search', { text: q });
+  if (version !== dataVersion || searchInput.value.trim() !== q) return;
   if (!res.ok) {
     showError(t('errSearchFailed') + res.error);
     return;
   }
-  if (searchInput.value.trim() !== q) return; // 结果已过期，丢弃
   state.highlights = new Set(res.result.highlights);
   state.searchForce = new Set(res.result.forceExpand);
+  state.searchChildren = createChildPathIndex(res.result.highlights);
   state.matchCount = res.result.matchCount;
   state.matchTruncated = res.result.truncated;
   renderTree();

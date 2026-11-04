@@ -7,57 +7,65 @@ const TEXT_DIFF_MAX_MIDDLE = 3000;
 function myersOps(a, b) {
   const N = a.length;
   const M = b.length;
-  const MAX = N + M;
-  const off = MAX + 1;
-  const V = new Int32Array(2 * MAX + 3);
-  V[off + 1] = 0;
+  if (!N) return M ? [{ type: 'add', bStart: 0, count: M }] : [];
+  if (!M) return [{ type: 'del', aStart: 0, count: N }];
+
+  // 第 d 轮只有 d+1 条有效对角线；无需为每轮复制长度 2*(N+M) 的前沿。
   const trace = [];
-  let D = -1;
-  for (let d = 0; d <= MAX; d++) {
-    for (let k = -d; k <= d; k += 2) {
-      let x;
-      if (k === -d || (k !== d && V[off + k - 1] < V[off + k + 1])) x = V[off + k + 1];
-      else x = V[off + k - 1] + 1;
+  let previous = new Int32Array(1);
+  let D = 0;
+  search: for (let d = 0; d <= N + M; d++) {
+    const current = new Int32Array(d + 1);
+    for (let i = 0; i <= d; i++) {
+      const k = 2 * i - d;
+      let x = (i === 0 || (i !== d && previous[i - 1] < previous[i]))
+        ? previous[i] : previous[i - 1] + 1;
       let y = x - k;
       while (x < N && y < M && a[x] === b[y]) { x++; y++; }
-      V[off + k] = x;
-      if (x >= N && y >= M) { D = d; break; }
+      current[i] = x;
+      if (x >= N && y >= M) { D = d; break search; }
     }
-    trace.push(V.slice(0));
-    if (D >= 0) break;
+    trace.push(current);
+    previous = current;
   }
-  // 回溯生成点操作（t: 0=same 1=add 2=del）
-  const points = [];
+
+  // 回溯时直接合并区间，避免为每一行建立临时操作对象。
+  const ops = [];
+  function appendRun(type, aStart, bStart, count) {
+    const last = ops[ops.length - 1];
+    if (last && last.type === type) {
+      last.count += count;
+      if (aStart !== undefined) last.aStart = aStart;
+      if (bStart !== undefined) last.bStart = bStart;
+    } else {
+      const op = { type, count };
+      if (aStart !== undefined) op.aStart = aStart;
+      if (bStart !== undefined) op.bStart = bStart;
+      ops.push(op);
+    }
+  }
   let x = N;
   let y = M;
   for (let d = D; d >= 1; d--) {
-    const v = trace[d - 1];
+    const previous = trace[d - 1];
     const k = x - y;
-    const prevK = (k === -d || (k !== d && v[off + k - 1] < v[off + k + 1])) ? k + 1 : k - 1;
-    const prevX = v[off + prevK];
+    const i = (k + d) / 2;
+    const down = i === 0 || (i !== d && previous[i - 1] < previous[i]);
+    const prevK = down ? k + 1 : k - 1;
+    const prevX = previous[down ? i : i - 1];
     const prevY = prevX - prevK;
-    while (x > prevX && y > prevY) { points.push({ t: 0, a: x - 1, b: y - 1 }); x--; y--; }
-    if (x === prevX) { points.push({ t: 1, b: y - 1 }); y--; }
-    else { points.push({ t: 2, a: x - 1 }); x--; }
-  }
-  while (x > 0 && y > 0) { points.push({ t: 0, a: x - 1, b: y - 1 }); x--; y--; }
-  points.reverse();
-  // 合并成 runs
-  const ops = [];
-  for (const p of points) {
-    const last = ops[ops.length - 1];
-    if (p.t === 0) {
-      if (last && last.type === 'same') last.count++;
-      else ops.push({ type: 'same', aStart: p.a, bStart: p.b, count: 1 });
-    } else if (p.t === 1) {
-      if (last && last.type === 'add') last.count++;
-      else ops.push({ type: 'add', bStart: p.b, count: 1 });
-    } else {
-      if (last && last.type === 'del') last.count++;
-      else ops.push({ type: 'del', aStart: p.a, count: 1 });
+    const same = Math.min(x - prevX, y - prevY);
+    if (same > 0) {
+      x -= same;
+      y -= same;
+      appendRun('same', x, y, same);
     }
+    if (x === prevX) appendRun('add', undefined, --y, 1);
+    else appendRun('del', --x, undefined, 1);
   }
-  return ops;
+  const same = Math.min(x, y);
+  if (same > 0) appendRun('same', x - same, y - same, same);
+  return ops.reverse();
 }
 
 /*
@@ -69,6 +77,15 @@ function myersOps(a, b) {
 export function makeTextDiff(text, text2, indent) {
   const aText = formatJson(text, { indent }).text;
   const bText = text === text2 ? aText : formatJson(text2, { indent }).text;
+  if (aText === bText) {
+    let count = 1;
+    let newline = -1;
+    while ((newline = aText.indexOf('\n', newline + 1)) !== -1) count++;
+    return {
+      ops: [{ type: 'same', aStart: 0, bStart: 0, count }],
+      aText, bText, blocky: false, totalLines: [count, count],
+    };
+  }
   const a = aText.split('\n');
   const b = bText.split('\n');
 

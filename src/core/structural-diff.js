@@ -71,7 +71,16 @@ export function diffData(left, right, options) {
   let truncated = false;
   let keyFallback = false;
 
-  const ignored = (segs) => ignoreSegs.some((p) => matchSegments(p, segs));
+  const ignoreByDepth = new Map();
+  for (const pattern of ignoreSegs) {
+    const patterns = ignoreByDepth.get(pattern.length);
+    if (patterns) patterns.push(pattern);
+    else ignoreByDepth.set(pattern.length, [pattern]);
+  }
+  const ignored = (segs) => {
+    const patterns = ignoreByDepth.get(segs.length);
+    return patterns ? patterns.some((pattern) => matchSegments(pattern, segs)) : false;
+  };
 
   // 与树渲染共用 JSON Pointer 路径，任意 key 都能无损编码
   function toPath(segs) {
@@ -85,13 +94,15 @@ export function diffData(left, right, options) {
     if (rightSegs && ignored(rightSegs)) return;
     stats[type]++;
     if (diffs.length < MAX_DIFFS) {
+      const leftPath = leftSegs ? toPath(leftSegs) : null;
+      const rightPath = rightSegs ? toPath(rightSegs) : null;
       diffs.push({
         type,
-        leftPath: leftSegs ? toPath(leftSegs) : null,
-        rightPath: rightSegs ? toPath(rightSegs) : null,
+        leftPath,
+        rightPath,
         display: displayPath(rightSegs || leftSegs),
-        leftPreview: previewValue(lv, leftSegs ? toPath(leftSegs) : null, leftNumberLiterals),
-        rightPreview: previewValue(rv, rightSegs ? toPath(rightSegs) : null, rightNumberLiterals),
+        leftPreview: previewValue(lv, leftPath, leftNumberLiterals),
+        rightPreview: previewValue(rv, rightPath, rightNumberLiterals),
       });
     } else {
       truncated = true;
@@ -110,7 +121,9 @@ export function diffData(left, right, options) {
     return true;
   }
 
+  // 深度优先遍历复用两条路径栈，只在输出差异/配对时编码路径。
   function walk(lv, rv, leftSegs, rightSegs) {
+    if (lv === rv && !keyField) return;
     const lObj = lv !== null && typeof lv === 'object';
     const rObj = rv !== null && typeof rv === 'object';
     if (!lObj || !rObj) {
@@ -126,16 +139,21 @@ export function diffData(left, right, options) {
     }
     if (!lArr) {
       for (const k of Object.keys(lv)) {
-        const ls = leftSegs.concat(k);
+        leftSegs.push(k);
         if (Object.prototype.hasOwnProperty.call(rv, k)) {
-          walk(lv[k], rv[k], ls, rightSegs.concat(k));
+          rightSegs.push(k);
+          walk(lv[k], rv[k], leftSegs, rightSegs);
+          rightSegs.pop();
         } else {
-          record('removed', ls, null, lv[k]);
+          record('removed', leftSegs, null, lv[k]);
         }
+        leftSegs.pop();
       }
       for (const k of Object.keys(rv)) {
         if (!Object.prototype.hasOwnProperty.call(lv, k)) {
-          record('added', null, rightSegs.concat(k), undefined, rv[k]);
+          rightSegs.push(k);
+          record('added', null, rightSegs, undefined, rv[k]);
+          rightSegs.pop();
         }
       }
       return;
@@ -147,35 +165,51 @@ export function diffData(left, right, options) {
         const k = String(rv[j][keyField]);
         if (!rightByKey.has(k)) rightByKey.set(k, j);
       }
-      const matched = new Set();
+      const matched = new Uint8Array(rv.length);
       for (let i = 0; i < lv.length; i++) {
         const k = String(lv[i][keyField]);
-        const ls = leftSegs.concat(String(i));
-        if (rightByKey.has(k) && !matched.has(rightByKey.get(k))) {
-          const j = rightByKey.get(k);
-          matched.add(j);
-          const rs = rightSegs.concat(String(j));
+        leftSegs.push(String(i));
+        const j = rightByKey.get(k);
+        if (j !== undefined && !matched[j]) {
+          matched[j] = 1;
+          rightSegs.push(String(j));
           if (i !== j && pairs.length < MAX_PAIRS) {
-            pairs.push([toPath(ls), toPath(rs)]);
+            pairs.push([toPath(leftSegs), toPath(rightSegs)]);
           }
-          walk(lv[i], rv[j], ls, rs);
+          walk(lv[i], rv[j], leftSegs, rightSegs);
+          rightSegs.pop();
         } else {
-          record('removed', ls, null, lv[i]);
+          record('removed', leftSegs, null, lv[i]);
         }
+        leftSegs.pop();
       }
       for (let j = 0; j < rv.length; j++) {
-        if (!matched.has(j)) record('added', null, rightSegs.concat(String(j)), undefined, rv[j]);
+        if (!matched[j]) {
+          rightSegs.push(String(j));
+          record('added', null, rightSegs, undefined, rv[j]);
+          rightSegs.pop();
+        }
       }
     } else {
       if (keyField && (lv.length || rv.length)) keyFallback = true;
       const n = Math.min(lv.length, rv.length);
       for (let i = 0; i < n; i++) {
         const s = String(i);
-        walk(lv[i], rv[i], leftSegs.concat(s), rightSegs.concat(s));
+        leftSegs.push(s);
+        rightSegs.push(s);
+        walk(lv[i], rv[i], leftSegs, rightSegs);
+        leftSegs.pop();
+        rightSegs.pop();
       }
-      for (let i = n; i < lv.length; i++) record('removed', leftSegs.concat(String(i)), null, lv[i]);
+      for (let i = n; i < lv.length; i++) {
+        leftSegs.push(String(i));
+        record('removed', leftSegs, null, lv[i]);
+        leftSegs.pop();
+      }
       for (let i = n; i < rv.length; i++) {
-        record('added', null, rightSegs.concat(String(i)), undefined, rv[i]);
+        rightSegs.push(String(i));
+        record('added', null, rightSegs, undefined, rv[i]);
+        rightSegs.pop();
       }
     }
   }

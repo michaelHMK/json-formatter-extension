@@ -14,6 +14,7 @@ const errorEl = document.getElementById('error');
 const action = document.body.dataset.action;
 
 let outputText = '';
+let dataVersion = 0;
 
 const runTask = createTaskRunner({
   onBusyChange: (busy) => { busyEl.hidden = !busy; },
@@ -30,7 +31,9 @@ async function runTransform() {
     return;
   }
   hideError();
+  const version = ++dataVersion;
   const res = await runTask(action, { text });
+  if (version !== dataVersion) return;
   if (!res.ok) {
     if (action === 'minify') showParseError(text, res);
     else if (action === 'unescape') showError(t('errUnescapeFailed') + res.error);
@@ -58,6 +61,8 @@ async function doCopy() {
 }
 
 function doClear() {
+  dataVersion++;
+  runTask('clear');
   inputEl.value = '';
   outputText = '';
   outputEl.textContent = '';

@@ -459,5 +459,16 @@
         "content": "$1"
       }
     }
+  },
+  "showMoreRange": {
+    "message": "Show $count$ more ($remaining$ remaining here)",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "remaining": {
+        "content": "$2"
+      }
+    }
   }
 }
