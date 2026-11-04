@@ -81,46 +81,23 @@ Tests cover number literals and special keys, cached search data and result limi
 
 ### Performance Checks
 
-Run `npm run bench` for search and diff benchmarks. Each case has two warmups and seven measured samples; the scripts report medians and accept a baseline module/source directory. Memory deltas include temporary allocations awaiting GC and are neither peak nor retained memory. Run benchmarks sequentially.
+Run `npm run bench` for search and diff benchmarks. Compare runs sequentially in the same environment.
 
-First round (`61480ce`), on 2026-11-04, Linux, i5-12400, Node 24.16.0, comparing against `f070f32` with synthetic inputs:
-
-| Scenario | Before | After |
-| --- | ---: | ---: |
-| Search a 1-million-element array | 110.59 ms | 16.03 ms |
-| Search a 200,000-field object | 59.22 ms | 45.65 ms |
-| Compare 50,000 nested records | 142.66 ms | 24.36 ms |
-| Compare 50,000 reversed records by key | 181.80 ms | 48.32 ms |
-| Exact text diff, 1,500 changed lines per side | 58.87 ms | 38.02 ms |
-
-Search reuses active traversal cursors and generates paths only for the first 500 matches while counting every match. Structural diff reuses path stacks. Myers diff stores only active diagonals, reducing trace buffers from about 72 MB to 18 MB in this worst-case fixture; identical text avoids two line arrays.
-
-The second round uses `61480ce` as its baseline:
-
-- Trees now use flat virtual rows. Unexpanded siblings share compressed ranges; only the viewport has DOM entries. A million-element array does not allocate one row object per item. Expansion levels, escaped keys, search navigation, diff filtering, and keyed-array synchronization remain available without a DOM budget or paging buttons.
-- Text views retain complete source strings with compact line-offset indexes, and render both vertical and horizontal windows. Long single lines and results beyond browser scroll-size limits remain accessible. Text diffs no longer stop at 50,000 displayed rows; small outputs keep native text rendering.
-- Worker snapshots reuse parsed documents/comparisons across views. Text-only comparison omits both object trees; tree data is fetched when needed. A serial queue coalesces obsolete requests before transferring them, and clear cancels queued work and releases snapshots.
-- Structural comparison uses iterative active frames. A 20,000-level fixture now completes in about 7 ms instead of overflowing the stack; 50,000 ordinary nested records remain about 24 → 22 ms (seven-sample medians). If a browser cannot clone a deep result, only that exceptional transfer uses snapshot source text for recovery; normal objects are not parsed again on the main thread.
-
-On local Chromium 153, a real Worker successfully returns 20,000-level data. Repeated comparisons of a 10.12 MiB fixture took about 59 ms with object transfer versus 22 ms for summaries after warmup; these round trips include input transfer and reuse cached parsing. Isolated text-component rendering took about 6.4 ms for 10 MB/100,000 lines and 8.1 ms for a 5 MiB single line, with 80 and 4 DOM elements respectively. These component samples exclude input editing, Worker computation, and transfer and are not total operation timings.
-
-`bench/tree-rendering.mjs` compares view generation with the same minimal DOM: expanding a 200×200 numeric fixture took about 183 → 12 ms and 242,412 → 193 DOM elements; reaching the end of 120,000 primitive values took 402 → 1 ms. It measures allocation and node counts, not browser layout or paint. The actual-browser checks below cover rendering and interaction.
-
-Optional browser checks use an existing development installation of Playwright and Chromium, with no extension runtime dependency:
+Optional browser checks require an existing Playwright installation and Chromium:
 
 ```bash
-# Omit PLAYWRIGHT_MODULE if playwright can already be imported locally.
+# Omit this if Playwright is already importable locally.
 export PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs
-# Optional: export CHROMIUM_EXECUTABLE=/path/to/chromium
+# Optional browser override: export CHROMIUM_EXECUTABLE=/path/to/chromium
 node bench/browser.mjs . --verify
 node bench/text-view.mjs
 node bench/tree-view.mjs
 node bench/worker-transfer.mjs
 ```
 
-These scripts start temporary local HTTP servers and check distant matches, long-line/scroll endpoints, copying, paired navigation, view switching, deep transfers, and clear. HTTP previews do not validate extension installation or Chrome i18n. `bench/text-rendering.mjs` is a separate candidate-renderer experiment; use `text-view.mjs` for the actual component. Run benchmarks sequentially.
+These checks cover large text and trees, navigation, copying, view switching, and deeply nested Worker transfers.
 
-Limits: complete inputs/results are still held in memory; this is not a streaming parser. Expand-all must still inspect containers and build a logical index. Native browser Find covers only mounted windows in large results; use tree search for JSON navigation and the copy button or focused Ctrl/Cmd+A, C for complete text. Text diff still uses block replacement above 3,000 middle lines. Measurements do not guarantee performance for arbitrary files, depths, or devices.
+Large outputs use virtual rendering, so native browser Find covers only the visible window. Tree search and full copying remain available. Complete inputs and results stay in memory; large text diffs use block replacement.
 
 For normal use, load the extension as described above. To preview the pages, run `python3 -m http.server 8000` and visit `http://localhost:8000/formatter.html`. Native modules cannot be loaded by opening the HTML files directly through `file://`, and HTTP previews do not provide Chrome's extension internationalization API.
 
