@@ -1,8 +1,8 @@
-# JSON Toolbox 隐私政策 / Privacy Policy
+# JSON工具箱隐私政策 / JSON Toolbox Privacy Policy
 
 更新日期：2026年11月4日。适用版本：1.0.0。
 
-JSON Toolbox 用于在浏览器本地格式化、压缩、转义、查看和比较 JSON。扩展不收集、上传、出售或与第三方共享用户数据。
+JSON工具箱用于在浏览器本地格式化、压缩、转义、查看和比较 JSON。扩展不收集、上传、出售或与第三方共享用户数据。
 
 ## 数据处理和存储
 

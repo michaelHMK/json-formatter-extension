@@ -1,30 +1,30 @@
 {
   "extName": {
-    "message": "JSON Toolbox"
+    "message": "JSON工具箱"
   },
   "extDescription": {
-    "message": "高性能 JSON Toolbox：格式化、压缩、转义与去转义、树形搜索、结构与文本对比。数据仅在本地处理，无广告、无追踪、不收集数据。"
+    "message": "高性能 JSON工具箱：格式化、压缩、转义与去转义、树形搜索、结构与文本对比。数据仅在本地处理，无广告、无追踪、不收集数据。"
   },
   "actionTitle": {
-    "message": "打开 JSON Toolbox"
+    "message": "打开 JSON工具箱"
   },
   "titleFormatter": {
-    "message": "JSON 格式化 - JSON Toolbox"
+    "message": "JSON 格式化 - JSON工具箱"
   },
   "titleMinify": {
-    "message": "JSON 压缩 - JSON Toolbox"
+    "message": "JSON 压缩 - JSON工具箱"
   },
   "titleEscape": {
-    "message": "JSON 转义 - JSON Toolbox"
+    "message": "JSON 转义 - JSON工具箱"
   },
   "titleUnescape": {
-    "message": "JSON 去转义 - JSON Toolbox"
+    "message": "JSON 去转义 - JSON工具箱"
   },
   "titleCompare": {
-    "message": "JSON 对比 - JSON Toolbox"
+    "message": "JSON 对比 - JSON工具箱"
   },
   "appName": {
-    "message": "JSON Toolbox"
+    "message": "JSON工具箱"
   },
   "navTools": {
     "message": "工具"

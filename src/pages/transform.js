@@ -76,8 +76,9 @@ function doClear() {
 }
 
 function fillSample() {
+  const appName = t('appName');
   const sample = JSON.stringify({
-    name: 'JSON Toolbox',
+    name: appName === 'appName' ? 'JSON工具箱' : appName,
     free: true,
     tags: ['local', 'fast'],
     nested: { id: 1, value: null },

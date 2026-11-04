@@ -28,6 +28,7 @@ async function capture(page, name, width, height) {
 }
 
 for (const [locale, directory] of [['en-US', 'en'], ['zh-CN', 'zh_CN']]) {
+  const brand = directory === 'zh_CN' ? 'JSON工具箱' : 'JSON Toolbox';
   const profile = await mkdtemp(join(tmpdir(), 'json-toolbox-store-'));
   let context;
   try {
@@ -47,17 +48,19 @@ for (const [locale, directory] of [['en-US', 'en'], ['zh-CN', 'zh_CN']]) {
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
 
-    if (directory === 'en') {
-      for (const [svg, png, width, height] of [
-        ['promo.svg', 'promo-440x280.png', 440, 280],
-        ['promo-1400x560.svg', 'promo-1400x560.png', 1400, 560],
-      ]) {
-        await page.setViewportSize({ width, height });
-        await page.goto(pathToFileURL(join(assets, svg)).href);
-        await capture(page, png, width, height);
-      }
-      await page.setViewportSize({ width: 1280, height: 800 });
+    const promos = directory === 'en' ? [
+      ['promo.svg', 'promo-440x280.png', 440, 280],
+      ['promo-1400x560.svg', 'promo-1400x560.png', 1400, 560],
+    ] : [
+      ['zh_CN/promo-440x280.svg', 'zh_CN/promo-440x280.png', 440, 280],
+      ['zh_CN/promo-1400x560.svg', 'zh_CN/promo-1400x560.png', 1400, 560],
+    ];
+    for (const [svg, png, width, height] of promos) {
+      await page.setViewportSize({ width, height });
+      await page.goto(pathToFileURL(join(assets, svg)).href);
+      await capture(page, png, width, height);
     }
+    await page.setViewportSize({ width: 1280, height: 800 });
 
     await page.goto(base + '/formatter.html');
     const branding = await page.evaluate(() => ({
@@ -66,10 +69,13 @@ for (const [locale, directory] of [['en-US', 'en'], ['zh-CN', 'zh_CN']]) {
       appName: document.querySelector('.brand-name').textContent,
     }));
     assert.equal(branding.language, locale);
-    assert.equal(branding.extensionName, 'JSON Toolbox');
-    assert.equal(branding.appName, 'JSON Toolbox');
+    assert.equal(branding.extensionName, brand);
+    assert.equal(branding.appName, brand);
+    await page.locator('#btn-sample').click();
+    await page.waitForFunction(() => document.querySelector('#busy').hidden && document.querySelector('#output-text').textContent);
+    assert.equal(JSON.parse(await page.locator('#input').inputValue()).name, brand);
     const formatterData = {
-      project: 'JSON Toolbox', version: 1, local: true,
+      project: brand, version: 1, local: true,
       features: directory === 'en' ? ['Format', 'Search', 'Compare'] : ['格式化', '搜索', '对比'],
       limits: { ads: 0, tracking: null }, users: ['Alex', 'Sam'],
     };
@@ -110,6 +116,15 @@ for (const [locale, directory] of [['en-US', 'en'], ['zh-CN', 'zh_CN']]) {
     await page.waitForFunction(() => !document.querySelector('#text-view').hidden && document.querySelector('#text-view .tline'));
     await page.locator('h1').click();
     await capture(page, `${directory}/03-compare-text.png`, 1280, 800);
+    for (const action of ['minify', 'escape', 'unescape']) {
+      await page.goto(base + `/${action}.html`);
+      await page.locator('#btn-sample').click();
+      await page.waitForFunction(() => document.querySelector('#busy').hidden && document.querySelector('#output-text').textContent);
+      const input = await page.locator('#input').inputValue();
+      const sample = action === 'unescape' ? JSON.parse('"' + input + '"') : input;
+      assert.equal(JSON.parse(sample).name, brand, `${locale}: ${action} sample brand`);
+      assert.equal(await page.locator('#error').isVisible(), false);
+    }
     assert.deepEqual(errors, [], `${locale}: browser errors`);
   } finally {
     await context?.close();

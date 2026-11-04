@@ -1,17 +1,17 @@
-# JSON Toolbox — Chrome Web Store 上架信息
+# JSON工具箱 — Chrome Web Store 上架信息
 
 > 本文件仅供上架时复制粘贴使用，不要打进 zip 包。
 
 ## 中文（简体）
 
-**名称**：JSON Toolbox
+**名称**：JSON工具箱
 
 **简短描述**（132 字符以内）：
-高性能 JSON Toolbox：格式化、压缩、转义与去转义、树形搜索、结构与文本对比。数据仅在本地处理，无广告、无追踪、不收集数据。
+高性能 JSON工具箱：格式化、压缩、转义与去转义、树形搜索、结构与文本对比。数据仅在本地处理，无广告、无追踪、不收集数据。
 
 **详细描述**：
 
-JSON Toolbox 是一个以性能和隐私为核心的 JSON 工具箱。点击扩展图标即可在独立标签页中格式化、查看和比较 JSON，完全离线运行，无需登录或申请额外权限。通过 Web Worker、树与文本的虚拟显示以及解析结果复用，减少处理大 JSON 时的界面阻塞与重复开销；实际速度取决于设备和数据结构。
+JSON工具箱是一个以性能和隐私为核心的 JSON 工具箱。点击扩展图标即可在独立标签页中格式化、查看和比较 JSON，完全离线运行，无需登录或申请额外权限。通过 Web Worker、树与文本的虚拟显示以及解析结果复用，减少处理大 JSON 时的界面阻塞与重复开销；实际速度取决于设备和数据结构。
 
 格式化页功能：
 - 格式化 / 美化，支持 2 空格、4 空格、Tab 缩进
@@ -70,7 +70,7 @@ Large results use virtual rendering, so native browser Find covers only the visi
 
 ## 上架表单
 
-名称和简短描述来自发布包的 `_locales/*/messages.json`；上方文案与发布包一致。默认语言为 English，另添加简体中文翻译。
+名称和简短描述来自发布包的 `_locales/*/messages.json`；上方文案与发布包一致。默认语言为 English，名称为 **JSON Toolbox**；简体中文名称为 **JSON工具箱**。
 
 | 字段 | 填写内容 |
 | --- | --- |
@@ -90,8 +90,8 @@ Large results use virtual rendering, so native browser Find covers only the visi
 
 - 商店图标：`icons/icon128.png`，128×128 PNG，图案 96×96，四周 16px 透明留白。
 - 实际界面截图：`store-assets/en/` 与 `store-assets/zh_CN/`，分别用于英文和简体中文详情页，1280×800。
-- 小型宣传图：`store-assets/promo-440x280.png`，440×280。
-- 大型宣传图：`store-assets/promo-1400x560.png`，1400×560。
+- 英文宣传图：`store-assets/promo-440x280.png`（440×280）与 `store-assets/promo-1400x560.png`（1400×560）。
+- 中文宣传图：`store-assets/zh_CN/promo-440x280.png`（440×280）与 `store-assets/zh_CN/promo-1400x560.png`（1400×560）。
 - 截图应展示真实功能，不添加无法验证的速度或排名承诺。尺寸依据[官方图片规范](https://developer.chrome.com/docs/webstore/images)。
 
 修改名称或界面后，可重新生成全部图片。需要本地已有 Playwright 和支持扩展的完整 Chromium（不能使用 `chrome-headless-shell`）：
