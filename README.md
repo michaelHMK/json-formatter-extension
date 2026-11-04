@@ -2,9 +2,27 @@
 
 English | [简体中文](README.zh-CN.md)
 
-A Chrome extension (Manifest V3) that provides a local, ad-free JSON toolbox with no permissions required. Web Worker processing and virtual scrolling help keep the interface responsive when working with large JSON documents. The extension collects no data and makes no network requests.
+**Built for large JSON. All processing stays local.**
+
+A Chrome extension (Manifest V3) built around performance and privacy, with tools to format, minify, escape, and compare JSON. Zero permissions, uploads, or tracking. No ads or third-party runtime dependencies. Works offline after installation.
 
 See the `version` field in [`manifest.json`](manifest.json) for the current version.
+
+## Performance for Large JSON
+
+- **Responsive interactions**: Web Workers handle parsing, search, and comparison, reducing computation on the main thread.
+- **Lightweight browsing**: trees and long text render only around the visible area, avoiding a DOM node for every result while supporting tree search navigation and full copying.
+- **Less repeated work**: parsed data and computed results are reused, tree data transfers only when needed, and redundant queued tasks are coalesced.
+
+See [Performance Checks](#performance-checks) below for verification commands and large-output limitations.
+
+## Privacy
+
+- **No uploads or tracking**: the extension makes no network requests, loads no remote code, and includes no telemetry, ads, or third-party SDKs.
+- **No extra extension permissions**: no website access or storage permissions, and no reading of website content, browsing history, cookies, or account information. See [`manifest.json`](manifest.json).
+- **No saved input history**: inputs and results are processed only in the memory of the tool page and its local Worker. The extension does not write them to browser storage, files, or cloud services; it writes to the system clipboard only when you copy.
+
+See the [privacy policy](PRIVACY.md) for full data-handling details. Use the [publicly hosted version](https://github.com/michaelHMK/json-formatter-extension/blob/main/PRIVACY.md) for the store listing.
 
 ## Features
 
@@ -140,9 +158,3 @@ Before uploading, extract the ZIP to a new directory, load that directory throug
 - Check additions, removals, value changes, and type changes in JSON Compare, along with array key matching, ignored paths, differences-only mode, and text comparison.
 - Check interface text with both English and Chinese browser languages, then repeat the main operations while offline.
 - Keep release materials consistent with the actual version, and avoid claims about file-processing speed that have not been verified.
-
-## Privacy
-
-- No sensitive permissions, such as host access or storage, are requested; see `manifest.json`.
-- All processing happens locally in the browser, with no third-party SDKs or telemetry.
-- See the [privacy policy](PRIVACY.md) for details. Use the [publicly hosted version](https://github.com/michaelHMK/json-formatter-extension/blob/main/PRIVACY.md) for the store listing.
