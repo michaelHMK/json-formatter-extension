@@ -1,8 +1,8 @@
-# JSON Formatter & Compare 隐私政策
+# JSON 工具箱隐私政策 / JSON Toolbox Privacy Policy
 
-更新日期：2026年11月3日。适用版本：1.0.0。
+更新日期：2026年11月4日。适用版本：1.0.0。
 
-JSON Formatter & Compare（JSON 格式化与对比工具）用于在浏览器本地格式化、压缩、转义、查看和比较 JSON。扩展不收集、上传、出售或与第三方共享用户数据。
+JSON 工具箱用于在浏览器本地格式化、压缩、转义、查看和比较 JSON。扩展不收集、上传、出售或与第三方共享用户数据。
 
 ## 数据处理和存储
 
@@ -22,9 +22,9 @@ JSON Formatter & Compare（JSON 格式化与对比工具）用于在浏览器本
 
 ## English
 
-Last updated: November 3, 2026. Applies to version 1.0.0.
+Last updated: November 4, 2026. Applies to version 1.0.0.
 
-JSON Formatter & Compare processes JSON locally in your browser for formatting, minification, escaping, viewing and comparison. The extension does not collect, upload, sell or share user data with third parties.
+JSON Toolbox processes JSON locally in your browser for formatting, minification, escaping, viewing and comparison. The extension does not collect, upload, sell or share user data with third parties.
 
 ### Processing and storage
 

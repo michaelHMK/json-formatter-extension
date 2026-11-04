@@ -1,12 +1,12 @@
 {
   "extName": {
-    "message": "JSON 格式化与对比工具"
+    "message": "JSON 工具箱"
   },
   "extDescription": {
-    "message": "纯本地 JSON 工具箱：格式化、压缩、转义与去转义、树形搜索、结构与文本对比，支持数组按主键配对。无广告，不收集数据，无需额外权限。"
+    "message": "高性能 JSON 工具箱：格式化、压缩、转义与去转义、树形搜索、结构与文本对比。数据仅在本地处理，无广告、无追踪、不收集数据。"
   },
   "actionTitle": {
-    "message": "打开 JSON 格式化工具"
+    "message": "打开 JSON 工具箱"
   },
   "titleFormatter": {
     "message": "JSON 格式化 - JSON 工具箱"

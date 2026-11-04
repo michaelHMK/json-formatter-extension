@@ -1,12 +1,12 @@
 {
   "extName": {
-    "message": "JSON Formatter & Compare"
+    "message": "JSON Toolbox"
   },
   "extDescription": {
-    "message": "Format, minify, escape and compare JSON locally. Search tree views and match arrays by key. No ads or data collection."
+    "message": "High-performance JSON Toolbox: format, minify, escape and compare locally. No ads, tracking or data collection."
   },
   "actionTitle": {
-    "message": "Open JSON Formatter"
+    "message": "Open JSON Toolbox"
   },
   "titleFormatter": {
     "message": "JSON Formatter - JSON Toolbox"

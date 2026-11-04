@@ -197,8 +197,9 @@ function doClear() {
 }
 
 function fillSample() {
+  const appName = t('appName');
   inputEl.value = JSON.stringify({
-    name: 'JSON 格式化工具',
+    name: appName === 'appName' ? 'JSON 工具箱' : appName,
     free: true,
     features: ['格式化', '压缩', '转义互转', '树形视图', '搜索', 'JSON 对比'],
     limits: { ads: 0, tracking: null },

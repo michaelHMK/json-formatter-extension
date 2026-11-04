@@ -112,7 +112,7 @@ def main():
         version, files = check_release()
         if args.check:
             return
-        output = ROOT / 'dist' / f'json-formatter-extension-{version}.zip'
+        output = ROOT / 'dist' / f'json-toolbox-{version}.zip'
         output.parent.mkdir(exist_ok=True)
         # 固定元数据；相同源文件可重现相同 ZIP 和校验值。
         with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
